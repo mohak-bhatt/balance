@@ -69,6 +69,7 @@ export function AddTransactionModal({
     isIncome ? PICKABLE_INCOME_CATEGORIES[0].icon : PICKABLE_EXPENSE_CATEGORIES[0].icon,
   );
   const [autoCat, setAutoCat] = useState(true);
+  const [showAutoCatBadge, setShowAutoCatBadge] = useState(false);
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [catPickerOpen, setCatPickerOpen] = useState(false);
@@ -89,7 +90,7 @@ export function AddTransactionModal({
       setLentTo("");
       const initialCat = isIncome ? PICKABLE_INCOME_CATEGORIES[0] : PICKABLE_EXPENSE_CATEGORIES[0];
       setCategory(initialCat.key); setIcon(initialCat.icon);
-      setAutoCat(true); setAmount(""); setPaymentMethod("cash");
+      setAutoCat(true); setShowAutoCatBadge(false); setAmount(""); setPaymentMethod("cash");
       setCatPickerOpen(false); setSingleStep(false);
       setEditingTitle(false); setEditingNote(false);
       return;
@@ -123,10 +124,18 @@ export function AddTransactionModal({
     [title, overrides, direction],
   );
   useEffect(() => {
-    if (autoCat && title.trim()) {
-      setCategory(matched.key);
-      setIcon(matched.icon);
+    if (!autoCat || !title.trim()) {
+      setShowAutoCatBadge(false);
+      return;
     }
+    setCategory(matched.key);
+    setIcon(matched.icon);
+    if (title.trim().length > 2 && matched.key !== "misc") {
+      setShowAutoCatBadge(true);
+      const timer = setTimeout(() => setShowAutoCatBadge(false), 1800);
+      return () => clearTimeout(timer);
+    }
+    setShowAutoCatBadge(false);
   }, [matched, autoCat, title]);
 
   const stepsTotal = mode === "lend" ? 3 : 2;
@@ -398,18 +407,33 @@ export function AddTransactionModal({
                     {/* category chip */}
                     {mode !== "lend" && !singleStep && (
                       <>
-                        <button
-                          onClick={() => setCatPickerOpen((v) => !v)}
-                          className="mt-2 flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs"
-                          style={{
-                            borderColor: cat.color + "55",
-                            background: `color-mix(in oklab, ${cat.color} 14%, transparent)`,
-                            color: cat.color,
-                          }}
-                        >
-                          <Icon name={cat.icon} size={12} strokeWidth={1.7} />
-                          <span className="font-medium">{cat.label}</span>
-                        </button>
+                        <div className="mt-2 flex w-fit items-center gap-2">
+                          <button
+                            onClick={() => setCatPickerOpen((v) => !v)}
+                            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${showAutoCatBadge ? "category-border-magic" : ""}`}
+                            style={{
+                              borderColor: cat.color + "55",
+                              background: `color-mix(in oklab, ${cat.color} 14%, transparent)`,
+                              color: cat.color,
+                            }}
+                          >
+                            <Icon name={cat.icon} size={12} strokeWidth={1.7} />
+                            <span className="font-medium">{cat.label}</span>
+                          </button>
+                          <AnimatePresence>
+                            {showAutoCatBadge && (
+                              <motion.p
+                                initial={{ opacity: 0, x: -6 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -6 }}
+                                transition={{ duration: 0.3 }}
+                                className="text-[10px] text-muted-foreground"
+                              >
+                                Automatically categorised
+                              </motion.p>
+                            )}
+                          </AnimatePresence>
+                        </div>
 
                         <AnimatePresence>
                           {catPickerOpen && (

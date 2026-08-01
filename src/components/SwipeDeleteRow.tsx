@@ -7,9 +7,10 @@ import { haptic } from "@/lib/haptics";
 interface Props {
   children: ReactNode;
   onDelete: () => void;
+  className?: string;
 }
 
-export function SwipeDeleteRow({ children, onDelete }: Props) {
+export function SwipeDeleteRow({ children, onDelete, className }: Props) {
   const x = useMotionValue(0);
   const bg = useTransform(x, [-160, -40, 0], [1, 0.5, 0]);
   const [gone, setGone] = useState(false);
@@ -22,7 +23,7 @@ export function SwipeDeleteRow({ children, onDelete }: Props) {
           initial={{ opacity: 1 }}
           exit={{ opacity: 0, scale: 0.6, y: -16, filter: "blur(8px)", transition: { duration: 0.3 } }}
           transition={{ type: "spring", stiffness: 220, damping: 22 }}
-          className="relative overflow-hidden rounded-2xl"
+          className={["relative overflow-hidden rounded-2xl", className].filter(Boolean).join(" ")}
         >
           <motion.div
             className="absolute inset-0 flex items-center justify-end bg-destructive/80 px-5 text-destructive-foreground"
@@ -43,7 +44,7 @@ export function SwipeDeleteRow({ children, onDelete }: Props) {
             }}
             dragTransition={{ bounceStiffness: 400, bounceDamping: 22 }}
             style={{ x }}
-            className="relative bg-background"
+            className="relative bg-transparent"
           >
             {children}
           </motion.div>

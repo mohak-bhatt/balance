@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Trash2, ChevronRight, ArrowDownRight, ArrowUpRight, Pencil, Handshake, Check } from "lucide-react";
 import { Icon } from "./Icon";
 import { AnimatedNumber } from "./AnimatedNumber";
+import { ScrollReveal } from "./ScrollReveal";
 import {
   LENT_OUT_KEY,
   formatCurrency,
@@ -17,10 +18,11 @@ interface Props {
   onEdit: (tx: Transaction) => void;
   onRepayLend?: (tx: Transaction) => void;
   filterCategory?: string | null;
+  matchReasons?: Record<string, string>;
 }
 
 export function TransactionList({
-  transactions, onDelete, onEdit, onRepayLend, filterCategory,
+  transactions, onDelete, onEdit, onRepayLend, filterCategory, matchReasons,
 }: Props) {
   // For category filter, also match multi-item transactions whose items include that cat
   const filtered = filterCategory
@@ -76,13 +78,15 @@ export function TransactionList({
                   <ul className="space-y-0">
                     <AnimatePresence initial={false}>
                       {items.map((t) => (
-                        <SwipeRow
-                          key={t.id}
-                          tx={t}
-                          onDelete={() => onDelete(t.id)}
-                          onEdit={() => onEdit(t)}
-                          onRepay={t.lentTo && !t.repaid ? () => onRepayLend?.(t) : undefined}
-                        />
+                        <ScrollReveal key={t.id}>
+                          <SwipeRow
+                            tx={t}
+                            onDelete={() => onDelete(t.id)}
+                            onEdit={() => onEdit(t)}
+                            onRepay={t.lentTo && !t.repaid ? () => onRepayLend?.(t) : undefined}
+                            matchReason={matchReasons?.[t.id]}
+                          />
+                        </ScrollReveal>
                       ))}
                     </AnimatePresence>
                   </ul>
@@ -97,12 +101,13 @@ export function TransactionList({
 }
 
 function SwipeRow({
-  tx, onDelete, onEdit, onRepay,
+  tx, onDelete, onEdit, onRepay, matchReason,
 }: {
   tx: Transaction;
   onDelete: () => void;
   onEdit: () => void;
   onRepay?: () => void;
+  matchReason?: string;
 }) {
   const cat = getCategory(tx.category);
   const isLend = tx.category === LENT_OUT_KEY;
@@ -113,14 +118,15 @@ function SwipeRow({
   const bgL = useTransform(x, [-160, -40, 0], [1, 0.5, 0]);
 
   return (
-    <motion.li
-      layout
-      initial={{ opacity: 0, y: 10, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.6, y: -20, filter: "blur(8px)", transition: { duration: 0.3 } }}
-      transition={{ type: "spring", stiffness: 220, damping: 22 }}
-      className="relative overflow-hidden rounded-2xl"
-    >
+    <ScrollReveal className="block">
+      <motion.li
+        layout
+        initial={{ opacity: 0, y: 10, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.6, y: -20, filter: "blur(8px)", transition: { duration: 0.3 } }}
+        transition={{ type: "spring", stiffness: 220, damping: 22 }}
+        className="relative overflow-hidden rounded-2xl"
+      >
       <motion.div
         className="absolute inset-0 flex items-center justify-end bg-destructive/80 px-5 text-destructive-foreground"
         style={{ opacity: bgL }}
@@ -165,6 +171,11 @@ function SwipeRow({
                 </span>
               )}
             </p>
+            {matchReason ? (
+              <p className="mt-0.5 text-[10px] text-muted-foreground/60 italic">
+                {matchReason}
+              </p>
+            ) : null}
           </div>
           <div className="text-right">
             <p className={`font-mono-display text-sm tabular-nums ${tx.repaid ? "line-through opacity-50" : ""}`}>
@@ -257,6 +268,7 @@ function SwipeRow({
           )}
         </AnimatePresence>
       </motion.div>
-    </motion.li>
+      </motion.li>
+    </ScrollReveal>
   );
 }

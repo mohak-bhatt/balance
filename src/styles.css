@@ -4,6 +4,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@keyframes category-float-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.03); }
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -155,4 +160,33 @@
 
 *::-webkit-scrollbar {
   display: none;
+}
+
+.rounded-\[20px\] {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+  contain: layout style paint;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.category-border-magic {
+  position: relative;
+  isolation: isolate;
+}
+
+.category-border-magic::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from 90deg at 50% 50%, #9CA3AF 0%, #4B5563 50%, #9CA3AF 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: category-float-glow 2s ease-in-out infinite;
+  z-index: -1;
 }

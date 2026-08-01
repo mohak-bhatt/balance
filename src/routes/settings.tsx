@@ -1,3 +1,4 @@
+import { supabase } from "@/lib/supabase";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ChevronLeft, Camera, Pencil, Plus, ArrowDown, ArrowUp, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -15,8 +16,17 @@ import {
   THEME_META, colorFor, loadTheme, saveTheme, type ThemeState, type ThemeId,
 } from "@/lib/themes";
 import { clearAvatar, initials, loadAvatar, saveAvatar } from "@/lib/avatar";
+import { NOTHING_YELLOW } from "@/components/YellowArrow";
+import {
+  cancelMonthlyNotification,
+  cancelWeeklyNotification,
+  requestNotificationPermission,
+  scheduleMonthlyNotification,
+  scheduleWeeklyNotification,
+} from "@/lib/notifications";
 
 import { showUndo } from "@/lib/undo";
+import { ScrollReveal } from "@/components/ScrollReveal";
 import mackieb from "@/assets/mackie-b.png";
 
 export const Route = createFileRoute("/settings")({
@@ -24,25 +34,42 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className="relative h-7 w-12 rounded-full transition-colors"
+      style={{ background: checked ? "#333434" : "rgba(255,255,255,0.15)" }}
+    >
+      <motion.div
+        className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-md"
+        animate={{ left: checked ? 22 : 2 }}
+        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+      />
+    </button>
+  );
+}
+
 function SettingsPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
-  const [notif, setNotif] = useState(false);
+  const [weeklyNotif, setWeeklyNotif] = useState(false);
+  const [monthlyNotif, setMonthlyNotif] = useState(false);
   const [theme, setTheme] = useState<ThemeState>(loadTheme());
   const [avatar, setAvatar] = useState<string | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [photoMenuOpen, setPhotoMenuOpen] = useState(false);
   const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressFiredRef = useRef(false);
-  
+  const [confirmLogout, setConfirmLogout] = useState(false);
+
   const [confirmRemovePhoto, setConfirmRemovePhoto] = useState(false);
 
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [loops, setLoops] = useState<Loop[]>([]);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const [favEditOpen, setFavEditOpen] = useState(false);
   const [favEditTarget, setFavEditTarget] = useState<Favorite | null>(null);
@@ -54,14 +81,17 @@ function SettingsPage() {
   useEffect(() => {
     const s = loadState();
     setName(s.userName ?? "");
-    setNotif(!!s.notificationsEnabled);
+    setWeeklyNotif(!!s.weeklyNotificationsEnabled);
+    setMonthlyNotif(!!s.monthlyNotificationsEnabled);
     setFavorites(s.favorites);
     setLoops(s.loops);
     loadAvatar().then(setAvatar);
+    supabase.auth.getSession().then(({ data }) => {
+      setUserEmail(data.session?.user?.email ?? null);
+    });
   }, []);
 
-  useBodyScrollLock(customOpen || photoMenuOpen || confirmRemovePhoto || photoViewerOpen || confirmReset);
-
+  useBodyScrollLock(customOpen || photoViewerOpen || confirmRemovePhoto || confirmReset || confirmLogout);
 
   // Favorites CRUD
   const addFavorite = (f: Omit<Favorite, "id">) => {
@@ -129,13 +159,30 @@ function SettingsPage() {
     saveState({ ...s, userName: n });
   };
 
-  const toggleNotif = async (v: boolean) => {
-    setNotif(v);
-    const s = loadState();
-    saveState({ ...s, notificationsEnabled: v });
-    if (v && typeof Notification !== "undefined" && Notification.permission === "default") {
-      try { await Notification.requestPermission(); } catch { /* */ }
+  const toggleWeeklyNotif = async (v: boolean) => {
+    if (v) {
+      const granted = await requestNotificationPermission();
+      if (!granted) return;
+      await scheduleWeeklyNotification();
+    } else {
+      await cancelWeeklyNotification();
     }
+    setWeeklyNotif(v);
+    const s = loadState();
+    saveState({ ...s, weeklyNotificationsEnabled: v });
+  };
+
+  const toggleMonthlyNotif = async (v: boolean) => {
+    if (v) {
+      const granted = await requestNotificationPermission();
+      if (!granted) return;
+      await scheduleMonthlyNotification();
+    } else {
+      await cancelMonthlyNotification();
+    }
+    setMonthlyNotif(v);
+    const s = loadState();
+    saveState({ ...s, monthlyNotificationsEnabled: v });
   };
 
   const applyTheme = (id: ThemeId) => {
@@ -156,7 +203,22 @@ function SettingsPage() {
     setConfirmRemovePhoto(false);
   };
 
+  const logOut = async () => {
+    await supabase.auth.signOut();
+    Object.keys(localStorage).filter((k) => k.startsWith("balance")).forEach((k) => localStorage.removeItem(k));
+    navigate({ to: "/onboarding" });
+  };
+
   const resetApp = async () => {
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.user) {
+      const userId = data.session.user.id;
+      await supabase.from("transactions").delete().eq("user_id", userId);
+      await supabase.from("favorites").delete().eq("user_id", userId);
+      await supabase.from("loops").delete().eq("user_id", userId);
+      await supabase.from("profiles").delete().eq("id", userId);
+      await supabase.auth.signOut();
+    }
     Object.keys(localStorage).filter((k) => k.startsWith("balance")).forEach((k) => localStorage.removeItem(k));
     await clearAvatar();
     navigate({ to: "/onboarding" });
@@ -164,227 +226,291 @@ function SettingsPage() {
 
   return (
     <>
-    <motion.div
-      initial={{ y: 24, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ type: "spring", stiffness: 300, damping: 32, mass: 0.8 }}
-      className="relative mx-auto min-h-screen w-full max-w-md px-5 pb-32"
-      style={{ paddingTop: 52 }}
-    >
-
-      <div className="flex items-center justify-between">
-        <Link to="/" className="grid h-10 w-10 place-items-center -ml-2">
-          <ChevronLeft size={22} strokeWidth={1.5} />
-        </Link>
-        <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Settings</p>
-        <div className="w-10" />
-      </div>
-
-      {/* User info */}
-      <section className="mt-10 flex flex-col items-center gap-4">
-        <button
-          onClick={() => {
-            if (longPressFiredRef.current) {
-              longPressFiredRef.current = false;
-              return;
-            }
-            setPhotoMenuOpen(true);
-          }}
-          onPointerDown={() => {
-            longPressFiredRef.current = false;
-            if (!avatar) return;
-            longPressTimer.current = setTimeout(() => {
-              longPressFiredRef.current = true;
-              setPhotoViewerOpen(true);
-            }, 450);
-          }}
-          onPointerUp={() => {
-            if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-          }}
-          onPointerLeave={() => {
-            if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-          }}
-          onContextMenu={(e) => e.preventDefault()}
-          className="relative grid h-24 w-24 place-items-center overflow-hidden rounded-full border border-white/15 select-none"
-        >
-          {avatar ? (
-            <img src={avatar} alt="" className="h-full w-full object-cover" draggable={false} />
-          ) : (
-            <span className="font-mono-display text-2xl">{initials(name || "?")}</span>
-          )}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickFile(f); e.target.value = ""; }}
-        />
-        {error && <p className="text-xs text-red-400">{error}</p>}
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => commitName(name)}
-          placeholder="Your name"
-          className="w-full max-w-[14rem] border-b border-white/10 bg-transparent pb-2 text-center font-mono-display text-lg outline-none focus:border-white/40"
-        />
-      </section>
-
-      {/* Manage Favourites */}
-      <section className="mt-12">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-          Manage favourites
-        </p>
-        <div className="mt-3">
-          {favorites.length === 0 ? (
-            <p className="py-4 text-xs text-muted-foreground">No favourites yet.</p>
-          ) : (
-            favorites.map((f) => (
-              <SwipeDeleteRow key={f.id} onDelete={() => deleteFavorite(f.id)}>
-                <div className="flex items-center gap-3 border-b border-white/[0.06] px-1 py-3">
-                  <span className="grid h-9 w-9 place-items-center rounded-full border border-white/10">
-                    <Icon name={f.icon} size={15} strokeWidth={1.5} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">{f.label}</p>
-                    <p className="font-mono-display truncate text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                      {f.presetAmount != null ? formatCurrency(f.presetAmount) : "Set amount"}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => { setFavEditTarget(f); setFavEditOpen(true); }}
-                    className="grid h-9 w-9 place-items-center text-muted-foreground active:opacity-60"
-                    aria-label="Edit favourite"
-                  >
-                    <Pencil size={15} strokeWidth={1.6} />
-                  </button>
-                </div>
-              </SwipeDeleteRow>
-            ))
-          )}
+      <motion.div
+        initial={{ y: 24, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 300, damping: 32, mass: 0.8 }}
+        className="relative mx-auto min-h-screen w-full max-w-md px-5 pb-32"
+        style={{ paddingTop: 52 }}
+      >
+        <div className="flex items-center justify-between">
+          <Link to="/" className="grid h-10 w-10 place-items-center -ml-2">
+            <ChevronLeft size={22} strokeWidth={1.5} />
+          </Link>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Settings</p>
+          <div className="w-10" />
         </div>
-        <button
-          onClick={() => { setFavEditTarget(null); setFavEditOpen(true); }}
-          className="mt-3 flex w-full items-center justify-center gap-2 py-3 text-[11px] uppercase tracking-[0.22em] text-foreground/85"
-        >
-          <Plus size={14} strokeWidth={1.8} /> Add favourite
-        </button>
-      </section>
 
-      {/* Manage Loops */}
-      <section className="mt-12">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-          Manage loops
-        </p>
-        <div className="mt-3">
-          {loops.length === 0 ? (
-            <p className="py-4 text-xs text-muted-foreground">No loops yet.</p>
-          ) : (
-            loops.map((l) => (
-              <SwipeDeleteRow key={l.id} onDelete={() => deleteLoop(l.id)}>
-                <div className="flex items-center gap-3 border-b border-white/[0.06] px-1 py-3">
-                  <span className="relative grid h-9 w-9 place-items-center rounded-full border border-white/10">
-                    <Icon name={l.icon} size={15} strokeWidth={1.5} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">{l.label}</p>
-                    <p className="font-mono-display flex items-center gap-1 truncate text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                      {l.direction === "in" ? (
-                        <ArrowUp size={10} strokeWidth={2} />
-                      ) : (
-                        <ArrowDown size={10} strokeWidth={2} />
-                      )}
-                      {formatCurrency(l.amount)} · day {l.recurrenceDayOfMonth}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => { setLoopEditTarget(l); setLoopEditOpen(true); }}
-                    className="grid h-9 w-9 place-items-center text-muted-foreground active:opacity-60"
-                    aria-label="Edit loop"
-                  >
-                    <Pencil size={15} strokeWidth={1.6} />
-                  </button>
-                </div>
-              </SwipeDeleteRow>
-            ))
-          )}
-        </div>
-        <button
-          onClick={() => { setLoopEditTarget(null); setLoopEditOpen(true); }}
-          className="mt-3 flex w-full items-center justify-center gap-2 py-3 text-[11px] uppercase tracking-[0.22em] text-foreground/85"
-        >
-          <Plus size={14} strokeWidth={1.8} /> Add loop
-        </button>
-      </section>
-
-      {/* Theme */}
-      <section className="mt-12">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Theme</p>
-        <div className="mt-4 space-y-2">
-          {THEME_META.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => applyTheme(m.id)}
-              className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left ${
-                theme.id === m.id ? "border-white/40" : "border-white/10"
+        {/* User info */}
+        <ScrollReveal once>
+          <section className="mt-10 flex flex-col items-center gap-4">
+            <motion.button
+              layoutId="avatar-hero"
+              onClick={() => setPhotoViewerOpen(true)}
+              whileTap={{ scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 400, damping: 20 }}
+              className={`relative grid h-28 w-28 place-items-center overflow-hidden rounded-full border border-white/15 select-none ${
+                photoViewerOpen ? "opacity-0" : "opacity-100"
               }`}
             >
-              <span className="text-sm">{m.label}</span>
-              <span className="flex gap-1">
-                {["food", "transport", "shopping", "bills", "entertainment"].map((k) => (
-                  <span key={k} className="h-3.5 w-3.5 rounded-full" style={{ background: colorFor({ id: m.id }, k) }} />
+              {avatar ? (
+                <img src={avatar} alt="" className="h-full w-full object-cover" draggable={false} />
+              ) : (
+                <span className="font-mono-display text-2xl">{initials(name || "?")}</span>
+              )}
+            </motion.button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickFile(f); e.target.value = ""; }}
+            />
+            {error && <p className="text-xs text-red-400">{error}</p>}
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => commitName(name)}
+              placeholder="Your name"
+              className="w-full max-w-[14rem] border-b border-white/10 bg-transparent pb-2 text-center font-mono-display text-lg outline-none focus:border-white/40"
+            />
+            {userEmail ? (
+              <div
+                className="w-fit max-w-full rounded-xl px-5 py-2 text-[13px] font-medium"
+                style={{ background: "rgba(255,255,255,0.12)", color: "#ffffff" }}
+              >
+                {userEmail}
+              </div>
+            ) : (
+              <button
+                onClick={() => navigate({ to: "/login" })}
+                className="w-fit max-w-full rounded-xl px-5 py-2 text-[13px] font-medium"
+                style={{ background: NOTHING_YELLOW, color: "#000000" }}
+              >
+                Log in to keep your data synced
+              </button>
+            )}
+          </section>
+        </ScrollReveal>
+
+        {/* Manage Favourites */}
+        <ScrollReveal>
+          <section className="mt-12">
+            <div
+              className="rounded-[20px] border p-4"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                borderColor: "rgba(255,255,255,0.06)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+              }}
+            >
+              <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground text-center mb-3">
+                Manage favourites
+              </p>
+              <div>
+                {favorites.length > 0 ? (
+                  favorites.map((f, idx) => (
+                    <SwipeDeleteRow key={f.id} onDelete={() => deleteFavorite(f.id)} className="mx-1">
+                      <div className={`flex items-center gap-3 bg-transparent px-3 py-3 ${idx !== favorites.length - 1 ? "border-b border-white/[0.06]" : ""}`}>
+                        <span className="grid h-9 w-9 place-items-center rounded-full border border-white/10">
+                          <Icon name={f.icon} size={15} strokeWidth={1.5} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm">{f.label}</p>
+                          <p className="font-mono-display truncate text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                            {f.presetAmount != null ? formatCurrency(f.presetAmount) : "Set amount"}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => { setFavEditTarget(f); setFavEditOpen(true); }}
+                          className="grid h-9 w-9 place-items-center text-muted-foreground active:opacity-60"
+                          aria-label="Edit favourite"
+                        >
+                          <Pencil size={15} strokeWidth={1.6} />
+                        </button>
+                      </div>
+                    </SwipeDeleteRow>
+                  ))
+                ) : null}
+              </div>
+              <button
+                onClick={() => { setFavEditTarget(null); setFavEditOpen(true); }}
+                className="mt-3 flex w-full items-center justify-center gap-2 py-3 text-[11px] uppercase tracking-[0.22em] text-foreground/85"
+              >
+                <Plus size={14} strokeWidth={1.8} /> Add favourite
+              </button>
+            </div>
+          </section>
+        </ScrollReveal>
+
+        {/* Manage Loops */}
+        <ScrollReveal>
+          <section className="mt-12">
+            <div
+              className="rounded-[20px] border p-4"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                borderColor: "rgba(255,255,255,0.06)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+              }}
+            >
+              <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground text-center mb-3">
+                Manage loops
+              </p>
+              <div>
+                {loops.length > 0 ? (
+                  loops.map((l, idx) => (
+                    <SwipeDeleteRow key={l.id} onDelete={() => deleteLoop(l.id)} className="mx-1">
+                      <div className={`flex items-center gap-3 bg-transparent px-3 py-3 ${idx !== loops.length - 1 ? "border-b border-white/[0.06]" : ""}`}>
+                        <span className="relative grid h-9 w-9 place-items-center rounded-full border border-white/10">
+                          <Icon name={l.icon} size={15} strokeWidth={1.5} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm">{l.label}</p>
+                          <p className="font-mono-display flex items-center gap-1 truncate text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                            {l.direction === "in" ? (
+                              <ArrowUp size={10} strokeWidth={2} />
+                            ) : (
+                              <ArrowDown size={10} strokeWidth={2} />
+                            )}
+                            {formatCurrency(l.amount)} · day {l.recurrenceDayOfMonth}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => { setLoopEditTarget(l); setLoopEditOpen(true); }}
+                          className="grid h-9 w-9 place-items-center text-muted-foreground active:opacity-60"
+                          aria-label="Edit loop"
+                        >
+                          <Pencil size={15} strokeWidth={1.6} />
+                        </button>
+                      </div>
+                    </SwipeDeleteRow>
+                  ))
+                ) : null}
+              </div>
+              <button
+                onClick={() => { setLoopEditTarget(null); setLoopEditOpen(true); }}
+                className="mt-3 flex w-full items-center justify-center gap-2 py-3 text-[11px] uppercase tracking-[0.22em] text-foreground/85"
+              >
+                <Plus size={14} strokeWidth={1.8} /> Add loop
+              </button>
+            </div>
+          </section>
+        </ScrollReveal>
+
+        {/* Theme */}
+        <ScrollReveal>
+          <section className="mt-12">
+            <div
+              className="rounded-[20px] border p-4"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                borderColor: "rgba(255,255,255,0.06)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+              }}
+            >
+              <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground text-center mb-3">
+                Theme
+              </p>
+              <div className="space-y-2">
+                {THEME_META.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => applyTheme(m.id)}
+                    className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left ${
+                      theme.id === m.id ? "border-white/40" : "border-white/10"
+                    }`}
+                  >
+                    <span className="text-sm">{m.label}</span>
+                    <span className="flex gap-1">
+                      {["food", "transport", "shopping", "bills", "entertainment"].map((k) => (
+                        <span key={k} className="h-3.5 w-3.5 rounded-full" style={{ background: colorFor({ id: m.id }, k) }} />
+                      ))}
+                    </span>
+                  </button>
                 ))}
-              </span>
-            </button>
-          ))}
-          <button
-            onClick={() => { applyTheme("custom"); setCustomOpen(true); }}
-            className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left ${
-              theme.id === "custom" ? "border-white/40" : "border-white/10"
-            }`}
-          >
-            <span className="text-sm">Custom</span>
-            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Edit</span>
-          </button>
-        </div>
-      </section>
+                <button
+                  onClick={() => { applyTheme("custom"); setCustomOpen(true); }}
+                  className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left ${
+                    theme.id === "custom" ? "border-white/40" : "border-white/10"
+                  }`}
+                >
+                  <span className="text-sm">Custom</span>
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Edit</span>
+                </button>
+              </div>
+            </div>
+          </section>
+        </ScrollReveal>
 
-      {/* Notifications */}
-      <section className="mt-12">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Notifications</p>
-        <label className="mt-4 flex items-center justify-between rounded-xl border border-white/10 px-4 py-3">
-          <span className="text-sm">Weekly & monthly analytics alerts</span>
-          <input
-            type="checkbox"
-            checked={notif}
-            onChange={(e) => toggleNotif(e.target.checked)}
-            className="h-4 w-4 accent-white"
-          />
-        </label>
-      </section>
+        {/* Notifications */}
+        <ScrollReveal>
+          <section className="mt-12">
+            <div
+              className="rounded-[20px] border p-4"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                borderColor: "rgba(255,255,255,0.06)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+              }}
+            >
+              <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground text-center mb-3">
+                Notifications
+              </p>
+              <div className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-3">
+                <span className="text-sm">Weekly analytics alerts</span>
+                <Toggle checked={weeklyNotif} onChange={toggleWeeklyNotif} />
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-3 mt-2">
+                <span className="text-sm">Monthly analytics alerts</span>
+                <Toggle checked={monthlyNotif} onChange={toggleMonthlyNotif} />
+              </div>
+            </div>
+          </section>
+        </ScrollReveal>
 
-      {/* Danger */}
-      <section className="mt-12">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Danger zone</p>
-        <button
-          onClick={() => setConfirmReset(true)}
-          className="mt-4 w-full rounded-xl border border-red-500/40 px-4 py-3 text-sm text-red-400"
-        >
-          Reset App
-        </button>
-      </section>
+        {/* Danger Zone */}
+        <ScrollReveal>
+          <section className="mt-12">
+            <div
+              className="rounded-[20px] border p-4"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                borderColor: "rgba(255,255,255,0.06)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+              }}
+            >
+              <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground text-center mb-3">
+                Danger zone
+              </p>
+              <button
+                onClick={() => setConfirmLogout(true)}
+                className="w-full rounded-xl border border-red-500/40 px-4 py-3 text-sm text-red-400"
+              >
+                Log Out
+              </button>
+              <button
+                onClick={() => setConfirmReset(true)}
+                className="w-full rounded-xl border border-red-500/40 px-4 py-3 text-sm text-red-400 mt-2"
+              >
+                Delete Data
+              </button>
+            </div>
+          </section>
+        </ScrollReveal>
 
-      {/* Credits */}
-      <section className="mt-16 flex flex-col items-center text-center">
-        <img
-          src={mackieb}
-          alt="An app by Mackie B"
-          className="w-48 max-w-[62%] select-none"
-          draggable={false}
-        />
-      </section>
-
-    </motion.div>
+        {/* Credits */}
+        <ScrollReveal>
+          <section className="mt-16 flex flex-col items-center text-center">
+            <img
+              src={mackieb}
+              alt="An app by Mackie B"
+              className="w-48 max-w-[62%] select-none"
+              draggable={false}
+            />
+          </section>
+        </ScrollReveal>
+      </motion.div>
 
       <AnimatePresence>
         {customOpen && (
@@ -403,13 +529,33 @@ function SettingsPage() {
               initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
               className="liquid-glass w-full max-w-sm rounded-3xl p-6"
             >
-              <p className="text-base">Reset everything?</p>
+              <p className="text-base">Delete all data?</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                This will permanently erase all your data and cannot be undone.
+                This permanently deletes all your data from this account's cloud storage and this device. This cannot be undone.
               </p>
               <div className="mt-6 flex gap-3">
                 <button onClick={() => setConfirmReset(false)} className="flex-1 rounded-xl border border-white/10 py-2 text-sm">Cancel</button>
-                <button onClick={resetApp} className="flex-1 rounded-xl bg-red-600 py-2 text-sm text-white">Reset</button>
+                <button onClick={resetApp} className="flex-1 rounded-xl bg-red-600 py-2 text-sm text-white">Delete</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+        {confirmLogout && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-6"
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
+              className="liquid-glass w-full max-w-sm rounded-3xl p-6"
+            >
+              <p className="text-base">Log out?</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Since login is required to use Balance, logging out will take you back to setup. Your data stays safe in the cloud and will sync back when you log in again.
+              </p>
+              <div className="mt-6 flex gap-3">
+                <button onClick={() => setConfirmLogout(false)} className="flex-1 rounded-xl border border-white/10 py-2 text-sm">Cancel</button>
+                <button onClick={logOut} className="flex-1 rounded-xl bg-red-600 py-2 text-sm text-white">Log Out</button>
               </div>
             </motion.div>
           </motion.div>
@@ -436,43 +582,53 @@ function SettingsPage() {
         mode="compact"
         initialEdit={loopEditTarget}
       />
+
       <AnimatePresence>
-        {photoMenuOpen && (
+        {photoViewerOpen && (
           <motion.div
-            key="photo-menu"
+            key="photo-viewer"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] flex items-end justify-center"
-            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)" }}
-            onClick={() => setPhotoMenuOpen(false)}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-between px-6 py-10"
+            style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(28px)" }}
+            onClick={() => setPhotoViewerOpen(false)}
           >
+            <button
+              onClick={(e) => { e.stopPropagation(); setPhotoViewerOpen(false); }}
+              className="self-end grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white"
+              aria-label="Close"
+            >
+              <X size={18} strokeWidth={1.6} />
+            </button>
             <motion.div
-              initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 280, damping: 26 }}
-              onClick={(e: React.MouseEvent) => e.stopPropagation()}
-              className="liquid-glass mx-4 mb-6 w-full max-w-sm rounded-3xl p-3"
+              layoutId="avatar-hero"
+              transition={{ type: "spring", stiffness: 240, damping: 26 }}
+              onClick={(e) => e.stopPropagation()}
+              className="grid h-72 w-72 place-items-center overflow-hidden rounded-full border border-white/20 shadow-2xl select-none"
+            >
+              {avatar ? (
+                <img src={avatar} alt="" className="h-full w-full object-cover" draggable={false} />
+              ) : (
+                <span className="font-mono-display text-5xl">{initials(name || "?")}</span>
+              )}
+            </motion.div>
+            <div
+              className="flex w-full max-w-sm gap-3"
+              onClick={(e) => e.stopPropagation()}
             >
               <button
-                onClick={() => { setPhotoMenuOpen(false); fileRef.current?.click(); }}
-                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm hover:bg-white/5"
+                onClick={() => { setPhotoViewerOpen(false); fileRef.current?.click(); }}
+                className="flex flex-1 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 py-3 text-sm text-white"
               >
-                <Camera size={16} strokeWidth={1.6} />
-                Change photo
+                <Camera size={15} strokeWidth={1.6} /> Change
               </button>
               <button
                 disabled={!avatar}
-                onClick={() => { setPhotoMenuOpen(false); setConfirmRemovePhoto(true); }}
-                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm text-red-400 hover:bg-white/5 disabled:opacity-30"
+                onClick={() => { setPhotoViewerOpen(false); setConfirmRemovePhoto(true); }}
+                className="flex flex-1 items-center justify-center gap-2 rounded-full border border-red-500/40 bg-red-500/15 py-3 text-sm text-red-300 disabled:opacity-30"
               >
-                <Trash2 size={16} strokeWidth={1.6} />
-                Remove photo
+                <Trash2 size={15} strokeWidth={1.6} /> Delete
               </button>
-              <button
-                onClick={() => setPhotoMenuOpen(false)}
-                className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm text-muted-foreground"
-              >
-                <X size={14} strokeWidth={1.6} /> Cancel
-              </button>
-            </motion.div>
+            </div>
           </motion.div>
         )}
         {confirmRemovePhoto && (
@@ -494,51 +650,6 @@ function SettingsPage() {
                 <button onClick={removePhoto} className="flex-1 rounded-xl bg-red-600 py-2 text-sm text-white">Remove</button>
               </div>
             </motion.div>
-          </motion.div>
-        )}
-        {photoViewerOpen && avatar && (
-          <motion.div
-            key="photo-viewer"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex flex-col items-center justify-between px-6 py-10"
-            style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(28px)" }}
-            onClick={() => setPhotoViewerOpen(false)}
-          >
-            <button
-              onClick={(e) => { e.stopPropagation(); setPhotoViewerOpen(false); }}
-              className="self-end grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white"
-              aria-label="Close"
-            >
-              <X size={18} strokeWidth={1.6} />
-            </button>
-            <motion.img
-              src={avatar}
-              alt=""
-              draggable={false}
-              initial={{ scale: 0.85, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 240, damping: 26 }}
-              onClick={(e) => e.stopPropagation()}
-              className="h-72 w-72 rounded-full object-cover border border-white/20 shadow-2xl select-none"
-            />
-            <div
-              className="flex w-full max-w-sm gap-3"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                onClick={() => { setPhotoViewerOpen(false); fileRef.current?.click(); }}
-                className="flex flex-1 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 py-3 text-sm text-white"
-              >
-                <Camera size={15} strokeWidth={1.6} /> Change
-              </button>
-              <button
-                onClick={() => { setPhotoViewerOpen(false); setConfirmRemovePhoto(true); }}
-                className="flex flex-1 items-center justify-center gap-2 rounded-full border border-red-500/40 bg-red-500/15 py-3 text-sm text-red-300"
-              >
-                <Trash2 size={15} strokeWidth={1.6} /> Delete
-              </button>
-            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -567,19 +678,35 @@ function CustomThemeSheet({
         exit={{ y: 40, scale: 0.96, opacity: 0 }}
         transition={{ type: "spring", stiffness: 200, damping: 24 }}
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
-        className="liquid-glass max-h-[80vh] w-full max-w-md overflow-y-auto rounded-t-3xl p-5 sm:rounded-3xl"
+        className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-t-3xl border-t p-5 sm:rounded-3xl sm:border"
+        style={{
+          background: "rgba(10,10,10,0.97)",
+          borderColor: "rgba(255,255,255,0.08)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 -20px 60px -20px rgba(0,0,0,0.8)",
+        }}
       >
         <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Custom theme</p>
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {CATEGORIES.map((c) => (
-            <label key={c.key} className="flex items-center gap-3 rounded-xl border border-white/10 p-3">
+        <div className="mt-4 space-y-2">
+          {CATEGORIES.filter((c) => c.key !== "lent_out").map((c) => (
+            <label
+              key={c.key}
+              className="flex items-center gap-3 rounded-xl border p-3"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                borderColor: "rgba(255,255,255,0.06)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
+              }}
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10">
+                <Icon name={c.icon} size={15} strokeWidth={1.5} />
+              </span>
+              <span className="flex-1 truncate text-sm">{c.label}</span>
               <input
                 type="color"
                 value={map[c.key]}
                 onChange={(e) => setMap((m) => ({ ...m, [c.key]: e.target.value }))}
-                className="h-7 w-7 cursor-pointer rounded-full border border-white/10 bg-transparent"
+                className="h-8 w-8 shrink-0 cursor-pointer rounded-full border border-white/15 bg-transparent"
               />
-              <span className="truncate text-xs">{c.label}</span>
             </label>
           ))}
         </div>

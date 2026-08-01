@@ -26,15 +26,6 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().setHorizontalScrollBarEnabled(false);
         getBridge().getWebView().setScrollbarFadingEnabled(true);
         enableTransparentSystemBars();
-
-        // Request notification permission (Android 13+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
-            }
-        }
     }
 
     @Override

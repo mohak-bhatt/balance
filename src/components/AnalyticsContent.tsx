@@ -8,15 +8,23 @@ import {
 } from "@/lib/ledger";
 import { useCategoryColor } from "@/lib/themes";
 import { haptic } from "@/lib/haptics";
+import { ScrollReveal } from "@/components/ScrollReveal";
 
 type Tab = "weekly" | "monthly";
 
-export function AnalyticsContent() {
-  const [tab, setTab] = useState<Tab>("weekly");
+interface AnalyticsContentProps {
+  initialTab?: Tab;
+}
+
+export function AnalyticsContent({ initialTab }: AnalyticsContentProps) {
+  const [tab, setTab] = useState<Tab>(initialTab ?? "weekly");
   const [txs, setTxs] = useState<Transaction[]>([]);
   const color = useCategoryColor();
 
   useEffect(() => { setTxs(loadState().transactions); }, []);
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
 
   return (
     <div
@@ -114,11 +122,14 @@ function Weekly({ txs, color }: { txs: Transaction[]; color: (k: string) => stri
 
   return (
     <div className="space-y-7">
+      <ScrollReveal once>
       <div className="grid grid-cols-2 gap-4">
         <Stat label="Total" value={formatCurrency(total)} />
         <Stat label="Daily avg" value={formatCurrency(avg)} />
       </div>
+      </ScrollReveal>
 
+      <ScrollReveal once>
       <div className="h-44 w-full">
         <ResponsiveContainer>
           <AreaChart data={data} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
@@ -140,10 +151,14 @@ function Weekly({ txs, color }: { txs: Transaction[]; color: (k: string) => stri
           </AreaChart>
         </ResponsiveContainer>
       </div>
+      </ScrollReveal>
 
+      <ScrollReveal>
       <Breakdown items={breakdown} color={color} />
+      </ScrollReveal>
 
       {biggest && (
+        <ScrollReveal>
         <div className="rounded-2xl border border-white/10 p-4">
           <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Biggest expense</p>
           <div className="mt-2 flex items-center justify-between">
@@ -151,6 +166,7 @@ function Weekly({ txs, color }: { txs: Transaction[]; color: (k: string) => stri
             <p className="font-mono-display text-base">{formatCurrency(biggest.amount)}</p>
           </div>
         </div>
+        </ScrollReveal>
       )}
     </div>
   );
@@ -209,10 +225,13 @@ function Monthly({ txs, color }: { txs: Transaction[]; color: (k: string) => str
 
   return (
     <div className="space-y-7">
+      <ScrollReveal once>
       <div className="grid grid-cols-2 gap-4">
         <Stat label="Spent" value={formatCurrency(total)} />
         <Stat label="Projected" value={formatCurrency(projected)} />
       </div>
+      </ScrollReveal>
+      <ScrollReveal once>
       <div className="h-44 w-full">
         <ResponsiveContainer>
           <BarChart data={data} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
@@ -228,7 +247,9 @@ function Monthly({ txs, color }: { txs: Transaction[]; color: (k: string) => str
           </BarChart>
         </ResponsiveContainer>
       </div>
+      </ScrollReveal>
 
+      <ScrollReveal>
       <div>
         <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">vs last month</p>
         <p className="mt-1 font-mono-display text-base">
@@ -237,10 +258,14 @@ function Monthly({ txs, color }: { txs: Transaction[]; color: (k: string) => str
             : `${total >= lastTotal ? "+" : ""}${formatCurrency(total - lastTotal)}`}
         </p>
       </div>
+      </ScrollReveal>
 
+      <ScrollReveal>
       <Breakdown items={breakdown.slice(0, 3)} color={color} title="Top categories" />
+      </ScrollReveal>
 
       {topTxs.length > 0 && (
+        <ScrollReveal>
         <div>
           <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Top transactions</p>
           <div className="mt-3 space-y-2">
@@ -252,6 +277,7 @@ function Monthly({ txs, color }: { txs: Transaction[]; color: (k: string) => str
             ))}
           </div>
         </div>
+        </ScrollReveal>
       )}
     </div>
   );

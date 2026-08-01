@@ -2,6 +2,8 @@
 // File name kept as ledger.ts to avoid an import churn across the codebase,
 // but every user-facing string is "Balance" and storage keys are `balance:*`.
 
+import { supabase } from "@/lib/supabase";
+
 export type Direction = "in" | "out";
 export type PaymentMethod = "cash" | "upi" | "card" | "netbanking" | "other";
 
@@ -60,7 +62,9 @@ export interface BalanceState {
   favorites: Favorite[];
   loops: Loop[];
   categorizationOverrides: Record<string, string>; // normalizedDescription -> categoryKey
-  notificationsEnabled: boolean;
+  notificationsEnabled?: boolean; // deprecated, kept for backward compatibility
+  weeklyNotificationsEnabled: boolean;
+  monthlyNotificationsEnabled: boolean;
   lastWeeklyAnalyticsViewed: string | null;
   lastMonthlyAnalyticsViewed: string | null;
   userName: string;
@@ -90,6 +94,8 @@ export const DEFAULT_STATE: BalanceState = {
   loops: [],
   categorizationOverrides: {},
   notificationsEnabled: false,
+  weeklyNotificationsEnabled: false,
+  monthlyNotificationsEnabled: false,
   lastWeeklyAnalyticsViewed: null,
   lastMonthlyAnalyticsViewed: null,
   userName: "",
@@ -155,6 +161,16 @@ export function loadState(): BalanceState {
 export function saveState(state: BalanceState) {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+  supabase.auth.getSession().then(({ data }) => {
+    if (data.session?.user) {
+      import("@/lib/sync").then(({ pushToCloud }) => {
+        pushToCloud(data.session!.user.id, state).catch((err) => {
+          console.error("Background cloud sync failed", err);
+        });
+      });
+    }
+  });
 }
 
 export function currentBalance(s: BalanceState): number {
@@ -178,75 +194,75 @@ export const LENT_OUT_KEY = "lent_out";
 
 export const CATEGORIES: CategoryDef[] = [
   { key: "food", label: "Food & Dining", icon: "UtensilsCrossed", color: "#F59E0B",
-    keywords: ["lunch","dinner","breakfast","restaurant","food","meal","pizza","burger","biryani","swiggy","zomato","dominos","mcdonald","kfc","subway","thali","dosa","idli","paratha"] },
+    keywords: ["lunch","dinner","breakfast","restaurant","food","meal","pizza","burger","biryani","biriyani","swiggy","zomato","dominos","dominoes","mcdonald","mcd","mcdonalds","kfc","subway","sub","thali","dosa","idli","paratha","faasos","box8","eatfit","freshmenu","behrouz","wow momo","momo","momos","shawarma","rolls","sandwich","fries","pasta","noodles","fried rice","soup","salad","sushi","taco","ramen","pav bhaji","chaat","pani puri","vada pav","street food","bbq","grill","tiffin","brunch","snack","snacks","deli","chaat","chinese","biryani"] },
   { key: "groceries", label: "Groceries", icon: "ShoppingCart", color: "#84CC16",
-    keywords: ["grocery","groceries","vegetables","fruits","dmart","bigbasket","blinkit","zepto","instamart","market","supermarket","kirana"] },
+    keywords: ["grocery","groceries","grocerys","vegetables","veggies","fruits","fruit","dmart","bigbasket","blinkit","zepto","instamart","market","supermarket","kirana","spencers","reliance","more","nature basket","natures basket","grofers","amazon fresh","jiomart","jio mart","milk","bread","eggs","rice","dal","atta","oil","spices","sugar","detergent","soap","shampoo","cleaning","toilet paper","daily needs","fresh"] },
   { key: "coffee_snacks", label: "Coffee & Snacks", icon: "Coffee", color: "#D97706",
-    keywords: ["coffee","tea","chai","snack","samosa","cafe","starbucks","cookie","bakery","cake","ice cream","icecream","chaayos","blue tokai","third wave"] },
+    keywords: ["coffee","tea","chai","cutting chai","filter coffee","cold coffee","cold brew","latte","cappuccino","espresso","americano","frappe","mocha","milkshake","shake","snack","samosa","cafe","caf","starbucks","barista","cookie","cookies","bakery","cake","brownie","pastry","doughnut","donut","waffles","momos","vada pav","pani puri","chaat","ice cream","icecream","chaayos","blue tokai","third wave","croissant","muffin","cupcake","dessert","desserts","juice","boba","smoothie"] },
   { key: "transport", label: "Transport", icon: "Bus", color: "#06B6D4",
-    keywords: ["bus","metro","train","uber","ola","rapido","taxi","auto","ride","cab","fare","redbus","irctc","local train"] },
+    keywords: ["bus","metro","train","uber","ola","rapido","taxi","auto","ride","cab","fare","redbus","irctc","local train","namma metro","delhi metro","mumbai metro","metro card","yulu","bounce","rickshaw","airport","parking","toll","ticket","commute","local cab","ride share","travel card"] },
   { key: "fuel", label: "Fuel", icon: "Fuel", color: "#EF4444",
-    keywords: ["petrol","fuel","diesel","gas station","hp petrol","indian oil","shell"] },
+    keywords: ["petrol","fuel","diesel","gas station","gasoline","hp petrol","indian oil","shell","bpcl","hpcl","bharat petrol","petrol pump","petrol station","petrol bunks","cng","lng","ev charging","charging station","refuel","vehicle refuel","gas cylinder","lpg"] },
   { key: "shopping", label: "Shopping", icon: "ShoppingBag", color: "#A855F7",
-    keywords: ["amazon","flipkart","ajio","meesho","buy","shopping","mall","nykaa","tata cliq"] },
+    keywords: ["amazon","flipkart","ajio","meesho","buy","shopping","shop","store","mall","nykaa","tata cliq","snapdeal","limeroad","purplle","myntra","shopclues","pepperfry","urban ladder","marketplace","retail","order","delivery","boutique","fashion","jewelry","jewellery"] },
   { key: "clothing", label: "Clothing", icon: "Shirt", color: "#EC4899",
-    keywords: ["clothes","shirt","tshirt","jeans","shoes","dress","myntra","zara","h&m","uniqlo","kurta"] },
+    keywords: ["clothes","shirt","tshirt","jeans","shoes","dress","myntra","zara","h&m","uniqlo","kurta","top","trouser","trousers","saree","lehenga","suit","sweater","jacket","hoodie","socks","underwear","footwear","innerwear","slippers","sandals"] },
   { key: "electronics", label: "Electronics", icon: "Laptop", color: "#3B82F6",
-    keywords: ["laptop","phone","keyboard","mouse","gadget","headphone","headphones","charger","earbuds","airpods","monitor","ssd"] },
+    keywords: ["laptop","phone","mobile","smartphone","keyboard","mouse","gadget","gadgets","headphone","headphones","earphone","earbuds","airpods","monitor","ssd","hard disk","hdd","charger","powerbank","router","speaker","camera","smartwatch","watch","tv","tablet","console","gaming console","playstation","xbox"] },
   { key: "stationery", label: "Stationery", icon: "Pencil", color: "#64748B",
-    keywords: ["pen","pencil","notebook","stationery","print","paper","xerox","photocopy"] },
+    keywords: ["pen","pens","pencil","notebook","notebooks","stationery","print","paper","xerox","photocopy","printer","ink","marker","file","folder","files","stapler","scissors","register","diary","journal","copy","copybook","lamination","binding","chart paper","sketchbook"] },
   { key: "bills", label: "Bills & Utilities", icon: "Receipt", color: "#F97316",
-    keywords: ["electricity","water","wifi","internet","bill","gas bill","jio","airtel","vi recharge","bsnl","broadband","recharge","postpaid"] },
+    keywords: ["electricity","water","wifi","internet","bill","gas bill","jio","airtel","vi recharge","bsnl","broadband","recharge","postpaid","prepaid","mobile recharge","utility","gas","cable","dth","dishtv","tatasky","sundirect","municipal","property tax","maintenance charges","electric","water bill"] },
   { key: "rent", label: "Rent & Housing", icon: "Home", color: "#DC2626",
-    keywords: ["rent","housing","maintenance","apartment","pg fees","hostel"] },
+    keywords: ["rent","housing","maintenance","apartment","pg fees","hostel","flat","room rent","house rent","broker","society","maintenance charges","lease","deposit","home rent","rent payment"] },
   { key: "subscriptions", label: "Subscriptions", icon: "Repeat", color: "#8B5CF6",
-    keywords: ["netflix","spotify","amazon prime","prime video","subscription","youtube premium","icloud","apple music","disney","hotstar","sonyliv"] },
+    keywords: ["netflix","spotify","gaana","wynk","jiocinema","amazon prime","prime video","subscription","youtube premium","icloud","apple music","disney","hotstar","sonyliv","prime","annual plan","renewal","membership","app subscription","premium","monthly plan","streaming","subscription renewal"] },
   { key: "entertainment", label: "Entertainment", icon: "Clapperboard", color: "#F472B6",
-    keywords: ["movie","bookmyshow","pvr","inox","concert","party","drinks","bar","game","steam","playstation","xbox"] },
+    keywords: ["movie","bookmyshow","pvr","inox","concert","party","drinks","bar","game","steam","playstation","xbox","spotify","gaana","wynk","jiocinema","netflix","hotstar","sonyliv","disney","pub","club","karaoke","casino","arcade","bowling","theater","cinema","tickets","event","festival","standup","comedy","pubg","valorant","fortnite"] },
   { key: "fitness", label: "Health & Fitness", icon: "Dumbbell", color: "#10B981",
-    keywords: ["gym","fitness","yoga","protein","workout","cult","cure fit"] },
+    keywords: ["gym","fitness","yoga","protein","workout","cult","cure fit","pilates","dance","zumba","crossfit","running","sports","nutrition","supplement","protein powder","massage","physio","rehab"] },
   { key: "medical", label: "Medical & Pharmacy", icon: "Pill", color: "#22D3EE",
-    keywords: ["doctor","medicine","pharmacy","hospital","clinic","apollo","1mg","pharmeasy","netmeds"] },
+    keywords: ["doctor","medicine","pharmacy","hospital","clinic","apollo","1mg","pharmeasy","netmeds","covid","covaxin","covid test","lab","pathology","xray","scan","dentist","thermometer","vitamin","supplement","injection","consultation"] },
   { key: "education", label: "Education", icon: "GraduationCap", color: "#6366F1",
-    keywords: ["course","book","tuition","udemy","coursera","class","education","fees","tuition fees","library"] },
+    keywords: ["course","book","books","tuition","udemy","coursera","class","education","fees","tuition fees","library","exam","school","college","mentor","coaching","test prep","certificate","workshop","seminar","engineering","mba","college fees","hostel fee"] },
   { key: "travel", label: "Travel", icon: "Plane", color: "#0EA5E9",
-    keywords: ["flight","hotel","airbnb","trip","travel","vacation","makemytrip","goibibo","oyo","cleartrip"] },
+    keywords: ["flight","hotel","airbnb","trip","travel","vacation","makemytrip","goibibo","oyo","cleartrip","train","railway","bus","cab","airport","tour","trek","trekking","passport","visa","stay","resort","hostel","homestay","room"] },
   { key: "gifts", label: "Gifts & Donations", icon: "Gift", color: "#F43F5E",
-    keywords: ["gift","donation","charity","present"] },
+    keywords: ["gift","donation","charity","present","cash gift","birthday present","anniversary","wedding gift","bridal","donated","donate","contribution","support","fundraiser","prasad"] },
   { key: "investments", label: "Investments", icon: "TrendingUp", color: "#16A34A",
-    keywords: ["stock","mutual fund","sip","investment","crypto","zerodha","groww","upstox"] },
+    keywords: ["stock","stocks","mutual fund","sip","investment","investments","crypto","cryptocurrency","zerodha","groww","upstox","trading","brokerage","share","shares","portfolio","fd","fixed deposit","bond"] },
   { key: "insurance", label: "Insurance", icon: "ShieldCheck", color: "#0891B2",
-    keywords: ["insurance","premium","policy","lic"] },
+    keywords: ["insurance","premium","policy","lic","health insurance","car insurance","term plan","health plan","vehicle insurance","claim","renewal premium"] },
   { key: "personal_care", label: "Personal Care", icon: "Scissors", color: "#E11D48",
-    keywords: ["salon","haircut","grooming","skincare","spa","barber"] },
+    keywords: ["salon","haircut","grooming","skincare","spa","barber","pedicure","manicure","facial","massage","waxing","threading","trim","shave","beard","nails","beauty"] },
   { key: "pets", label: "Pets", icon: "PawPrint", color: "#CA8A04",
-    keywords: ["pet","dog","cat","vet","pet food"] },
+    keywords: ["pet","dog","cat","vet","pet food","petshop","pet store","grooming","kennel","dog food","cat food","litter","treat","puppy","kitten","pet care"] },
   { key: "home_repair", label: "Home Maintenance", icon: "Wrench", color: "#7C3AED",
-    keywords: ["repair","plumber","electrician","maintenance","urbanclap","urban company"] },
+    keywords: ["repair","plumber","electrician","maintenance","urbanclap","urban company","carpenter","painter","civil work","locksmith","pest control","mason","interior","furniture","fitting","installation","repairing","painting"] },
   { key: "childcare", label: "Childcare", icon: "Baby", color: "#FB7185",
-    keywords: ["baby","daycare","school fees","child","diapers"] },
+    keywords: ["baby","daycare","school fees","child","diapers","milk powder","formula","toys","play school","nursery","kindergarten","kids","wipes","stroller","baby food","diaper"] },
 
   // Income-side categories
   { key: "pocket_money", label: "Pocket Money", icon: "Wallet", color: "#22C55E",
-    keywords: ["pocket money","allowance from","from mom","from dad","from parents"], direction: "in" },
+    keywords: ["pocket money","allowance from","from mom","from dad","from parents","allowance","cash from parents","pocket","dad","mom","family"], direction: "in" },
   { key: "salary", label: "Salary / Stipend", icon: "Briefcase", color: "#10B981",
-    keywords: ["salary","stipend","paycheck","wage"], direction: "in" },
+    keywords: ["salary","stipend","paycheck","wage","pay","earnings","bonus","commission","payroll","income","invoice"], direction: "in" },
   { key: "gift_in", label: "Gift Received", icon: "Gift", color: "#34D399",
-    keywords: ["gift received","birthday money","cash gift"], direction: "in" },
+    keywords: ["gift received","birthday money","cash gift","received gift","gift from","present received","wedding gift","from friend"], direction: "in" },
   { key: "refund", label: "Refund", icon: "Undo2", color: "#4ADE80",
-    keywords: ["refund","refunded","returned","cashback"], direction: "in" },
+    keywords: ["refund","refunded","returned","cashback","rebate","money back","reimbursement"], direction: "in" },
   { key: "loan_repaid", label: "Loan Repayment Received", icon: "Handshake", color: "#86EFAC",
-    keywords: ["repayment","paid back","returned the money"], direction: "in" },
+    keywords: ["repayment","paid back","returned the money","loan repayment","loan received","settled loan","borrowed money back"], direction: "in" },
   { key: "other_income", label: "Other Income", icon: "PiggyBank", color: "#A7F3D0",
-    keywords: ["income","received","credit"], direction: "in" },
+    keywords: ["income","received","credit","cash received","deposit","transferred","side hustle","freelance","sale","sold","sale of","received money"], direction: "in" },
 
   { key: "opening_balance", label: "Opening Balance", icon: "Wallet", color: "#A7F3D0",
-    keywords: [], direction: "in" },
+    keywords: ["opening balance","starting balance","initial balance","beginning balance"], direction: "in" },
 
-  { key: "misc", label: "Miscellaneous", icon: "Sparkles", color: "#94A3B8", keywords: [] },
+  { key: "misc", label: "Miscellaneous", icon: "Sparkles", color: "#94A3B8", keywords: ["misc","miscellaneous","other","various"] },
 
   // Reserved — auto-applied to lend transactions, hidden from pickers
-  { key: LENT_OUT_KEY, label: "Lent Out", icon: "Handshake", color: "#FBBF24", keywords: [] },
+  { key: LENT_OUT_KEY, label: "Lent Out", icon: "Handshake", color: "#FBBF24", keywords: ["lent out","lent","borrowed","loan given","money lent","owed"] },
 ];
 
 export const PICKABLE_EXPENSE_CATEGORIES = CATEGORIES.filter(
@@ -258,6 +274,36 @@ export const PICKABLE_INCOME_CATEGORIES = CATEGORIES.filter(
 
 function normalize(s: string): string {
   return s.toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function stripFillerWords(s: string): string {
+  return normalize(s)
+    .replace(/\b(bought|paid|for|at|from|the|a|an)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const dp = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i += 1) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j += 1) dp[0][j] = j;
+
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+    }
+  }
+
+  return dp[a.length][b.length];
 }
 
 /**
@@ -274,22 +320,42 @@ export function matchCategory(
   const t = normalize(text);
   if (!t) return getCategory("misc");
   const { overrides = {}, direction = "out" } = opts;
+  const searchText = stripFillerWords(t);
 
   if (overrides[t]) return getCategory(overrides[t]);
   for (const desc in overrides) {
-    if (t.includes(desc) || desc.includes(t)) return getCategory(overrides[desc]);
+    const normalizedDesc = normalize(desc);
+    if (searchText.includes(normalizedDesc) || normalizedDesc.includes(searchText)) {
+      return getCategory(overrides[desc]);
+    }
   }
 
   const pool = direction === "in" ? PICKABLE_INCOME_CATEGORIES : PICKABLE_EXPENSE_CATEGORIES;
   let best: { cat: CategoryDef; len: number } | null = null;
   for (const c of pool) {
     for (const k of c.keywords) {
-      if (t.includes(k) && (!best || k.length > best.len)) {
+      if (searchText.includes(k) && (!best || k.length > best.len)) {
         best = { cat: c, len: k.length };
       }
     }
   }
   if (best) return best.cat;
+
+  const words = searchText.split(/\s+/).filter(Boolean);
+  for (const c of pool) {
+    for (const k of c.keywords) {
+      const normalizedKeyword = normalize(k);
+      if (!normalizedKeyword) continue;
+      for (const word of words) {
+        if (levenshteinDistance(normalizedKeyword, word) <= 2 && (!best || k.length > best.len)) {
+          best = { cat: c, len: k.length };
+          break;
+        }
+      }
+    }
+  }
+  if (best) return best.cat;
+
   return direction === "in" ? getCategory("other_income") : getCategory("misc");
 }
 

@@ -5,6 +5,7 @@ import { Trash2, X, Pencil, Check } from "lucide-react";
 import { Icon } from "./Icon";
 import { IconPicker } from "./IconPicker";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { useKeyboardOffset } from "@/hooks/useKeyboardOffset";
 import { CATEGORIES, PAYMENT_METHODS, type Favorite, type PaymentMethod } from "@/lib/ledger";
 import { useCategoryColor } from "@/lib/themes";
 import { showInfo } from "@/lib/undo";
@@ -29,6 +30,7 @@ export function FavoriteEditor({
   mode = "manage", initialEdit = null,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const kb = useKeyboardOffset();
   const [label, setLabel] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0].key);
   const [icon, setIcon] = useState("Star");
@@ -98,9 +100,14 @@ export function FavoriteEditor({
             onClick={onClose}
           />
           <motion.div
-            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            initial={{ y: "100%" }} animate={{ y: kb ? -kb : 0 }} exit={{ y: "100%" }}
             transition={{ type: "spring", stiffness: 220, damping: 26 }}
-            className="liquid-glass fixed inset-x-0 bottom-0 z-50 max-h-[92vh] overflow-y-auto rounded-t-[32px] p-5 pb-8"
+            className="fixed inset-x-0 bottom-0 z-50 max-h-[92vh] overflow-y-auto rounded-t-[32px] border-t p-5 pb-8"
+            style={{
+              background: "rgba(10,10,10,0.97)",
+              borderColor: "rgba(255,255,255,0.08)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 -20px 60px -20px rgba(0,0,0,0.8)",
+            }}
           >
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/15" />
             <div className="flex items-center justify-between">

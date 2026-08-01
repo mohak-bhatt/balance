@@ -1,11 +1,5 @@
-<p align="center">
-
-<img src="src/assets/banner.png">
-
-</p>
-
 <h3 align="center">
-Minimal. Beautiful. Private.
+Minimal. Beautiful. Yours.
 </h3>
 
 <p align="center">
@@ -36,7 +30,7 @@ Unlike traditional finance apps filled with advertisements, subscriptions, and c
 
 **Making expense tracking fast, elegant and effortless.**
 
-The app follows a minimalist black-and-white design language inspired by premium productivity applications while remaining fully functional offline.
+The app follows a minimalist black-and-white design language inspired by premium productivity applications, and now supports secure cloud sync across devices via Google login.
 
 Whether you're recording your daily coffee, managing recurring subscriptions, or reviewing your monthly spending habits, Balance aims to make the experience frictionless.
 
@@ -49,7 +43,7 @@ Most expense trackers today are either:
 - cluttered
 - overloaded with features
 - subscription-based
-- require creating an account
+- ad-supported
 - collect unnecessary user data
 
 I wanted to build something different.
@@ -58,7 +52,7 @@ Balance was created as a personal project to explore modern mobile application d
 
 > How can tracking expenses become as quick as opening the calculator?
 
-This project also became an opportunity to learn modern frontend engineering, Android development, UI/UX design, animations, offline data persistence, and native mobile deployment.
+This project also became an opportunity to learn modern frontend engineering, Android development, backend/database design, UI/UX design, animations, authentication, and native mobile deployment.
 
 ---
 
@@ -69,7 +63,15 @@ This project also became an opportunity to learn modern frontend engineering, An
 - Quick expense logging
 - One-tap transaction creation
 - Beautiful minimal interface
-- Fast category selection
+- Fast, intelligent category selection
+
+### 🔍 Smart Search
+
+Full-text search across your history — search by note, category, label, amount, date, or time. Automatically shows why each result matched.
+
+### 🤖 Smart Categorization
+
+Transactions are automatically categorized as you type, learning from your corrections over time.
 
 ### ⭐ Favorites
 
@@ -107,16 +109,22 @@ Visualize your spending habits through beautiful charts.
 
 Gain insights into:
 
-- Monthly spending
+- Weekly and monthly spending
 - Category distribution
 - Trends
-- Overall expenses
+- Biggest expenses and top categories
 
 ---
 
 ### 🔔 Notifications
 
-Optional reminder notifications help build consistent spending habits.
+Real local notifications for weekly and monthly analytics — enabled independently, with each one deep-linking straight to the relevant report when tapped.
+
+---
+
+### ☁️ Cloud Sync
+
+Sign in with Google to securely sync your transactions, favorites, loops, and settings across every device you use. Your data stays tied to your account, not your device.
 
 ---
 
@@ -147,23 +155,11 @@ Designed with:
 
 ### 🔒 Privacy First
 
-No accounts.
+No ads.
 
-No cloud sync.
+No third-party tracking.
 
-No advertisements.
-
-No tracking.
-
-Everything stays on your device.
-
----
-
-### ⚡ Offline First
-
-Balance works completely offline.
-
-Your data remains available without an internet connection.
+Your data is stored securely under your own account and is never sold or shared.
 
 ---
 
@@ -201,6 +197,10 @@ Your data remains available without an internet connection.
 
 - TanStack Query
 
+## Backend
+
+- Supabase (Auth, Postgres, Row Level Security)
+
 ## Mobile
 
 - Capacitor 8
@@ -217,177 +217,3 @@ Your data remains available without an internet connection.
 ---
 
 # 📂 Project Structure
-
-```
-src/
-
-components/
-pages/
-routes/
-hooks/
-lib/
-styles/
-utils/
-
-android/
-```
-
----
-
-# ⚙ Installation
-
-Clone the repository
-
-```bash
-git clone https://github.com/yourusername/balance.git
-```
-
-Install dependencies
-
-```bash
-npm install
-```
-
-Run development server
-
-```bash
-npm run dev
-```
-
-Build production
-
-```bash
-npm run build
-```
-
-Run Android
-
-```bash
-npx cap sync android
-```
-
-Open Android Studio
-
-```bash
-npx cap open android
-```
-
----
-
-# 🏗 Architecture
-
-Balance follows a mobile-first architecture.
-
-```
-React UI
-↓
-
-TanStack Router
-
-↓
-
-Business Logic
-
-↓
-
-Local Storage
-
-↓
-
-Capacitor Native Layer
-
-↓
-
-Android
-```
-
----
-
-# 🗺 Roadmap
-
-## Version 1.0
-
-- [x] Expense Tracking
-- [x] Favorites
-- [x] Loops
-- [x] Analytics
-- [x] Notifications
-- [x] Native Android Support
-
----
-
-## Version 1.1
-
-- [ ] Budgets
-- [ ] Search
-- [ ] Export CSV
-- [ ] Import / Export Backup
-- [ ] Custom Categories
-
----
-
-## Version 1.2
-
-- [ ] Widgets
-- [ ] PIN Lock
-- [ ] Better Analytics
-- [ ] Calendar View
-
----
-
-## Version 2.0
-
-- [ ] Cloud Sync
-- [ ] Multi-device Support
-- [ ] AI Spending Insights
-- [ ] OCR Receipt Scanner
-- [ ] Multiple Wallets
-- [ ] Shared Family Accounts
-
----
-
-# 🤝 Contributing
-
-This project is currently under active development.
-
-Suggestions, issues, and pull requests are always welcome.
-
----
-
-# 📄 License
-
-MIT License
-
----
-
-# 👨‍💻 Developer
-
-**Mohak Bhatt**
-
-Incoming B.Tech (Mathematics & Computing)
-
-Mahindra University
-
-Interested in
-
-- Artificial Intelligence
-- Machine Learning
-- Cybersecurity
-- Mobile Development
-- Full Stack Engineering
-
-LinkedIn:
-
-GitHub:
-
-Email:
-
----
-
-# ⭐ Support
-
-If you like this project,
-
-consider giving it a ⭐ on GitHub.
-
-It really helps and motivates future development.

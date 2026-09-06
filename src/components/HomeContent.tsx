@@ -13,6 +13,7 @@ import { PaymentMethodPopover } from "@/components/PaymentMethodPopover";
 import { FavoritePaymentPopup } from "@/components/FavoritePaymentPopup";
 import { EditTransactionPopup } from "@/components/EditTransactionPopup";
 import { CategoryAnalyticsCard } from "@/components/CategoryAnalyticsCard";
+import { useFocusMode } from "@/lib/FocusModeContext";
 import { useAvatar } from "@/lib/avatar";
 import { haptic } from "@/lib/haptics";
 import { showUndo } from "@/lib/undo";
@@ -33,7 +34,9 @@ import {
   type Transaction,
 } from "@/lib/ledger";
 
-const SPRING = { type: "spring" as const, stiffness: 260, damping: 26, mass: 0.85 };
+const SPRING = { type: "spring" as const, stiffness: 180, damping: 28, mass: 1 };
+const FOCUS_TRANSITION = SPRING;
+const DONUT_FOCUS_TRANSITION = { type: "spring" as const, stiffness: 220, damping: 28, mass: 0.9, delay: 0 };
 const DEFAULT_SHEET_TOP_PX = 96;
 
 function applyTransactionDelta(s: BalanceState, tx: Transaction, sign: 1 | -1): BalanceState {
@@ -66,6 +69,13 @@ export function HomeContent() {
   const [sheetTopPx, setSheetTopPx] = useState<number>(DEFAULT_SHEET_TOP_PX);
   const topBarRef = useRef<HTMLDivElement>(null);
   const avatar = useAvatar();
+  const { setFocusMode } = useFocusMode();
+
+  useEffect(() => {
+    setFocusMode(Boolean(selectedCat));
+  }, [selectedCat, setFocusMode]);
+
+  useEffect(() => () => setFocusMode(false), [setFocusMode]);
 
   useEffect(() => {
     const s = loadState();
@@ -347,13 +357,35 @@ export function HomeContent() {
   const lowBalanceThreshold = state.lowBalanceAlertThreshold ?? 0;
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, filter: "blur(8px)", y: 12 }}
+      animate={{
+        opacity: 1,
+        filter: "blur(0px)",
+        y: 0,
+        backgroundColor: selectedCat ? "#0a0a0a" : "#000000",
+      }}
+      transition={{
+        opacity: { duration: 1.1, ease: [0.16, 1, 0.3, 1] },
+        filter: { duration: 1.1, ease: [0.16, 1, 0.3, 1] },
+        y: { duration: 1.1, ease: [0.16, 1, 0.3, 1] },
+        backgroundColor: FOCUS_TRANSITION,
+      }}
+      style={{ paddingTop: 52, background: "#000000", minHeight: "100vh", overflowX: "hidden", WebkitOverflowScrolling: "touch" }}
       className="relative mx-auto min-h-screen w-full max-w-md px-5 pb-12"
-      style={{ paddingTop: 52 }}
     >
-
-
-      <div ref={topBarRef} className="relative z-30 flex items-center justify-between">
+      <div className="h-12">
+        <AnimatePresence initial={false}>
+          {!selectedCat && (
+            <motion.div
+              key="home-header"
+              ref={topBarRef}
+              initial={{ opacity: 0, filter: "blur(8px)", y: -8 }}
+              animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+              exit={{ opacity: 0, filter: "blur(8px)", y: -8 }}
+              transition={FOCUS_TRANSITION}
+              className="relative z-30 flex h-12 items-center justify-between"
+            >
         <button
           onClick={() => setPopoverOpen((v) => !v)}
           className="flex flex-col items-start"
@@ -380,6 +412,9 @@ export function HomeContent() {
             <User size={18} strokeWidth={1.5} />
           )}
         </Link>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <PaymentMethodPopover
@@ -389,7 +424,12 @@ export function HomeContent() {
         onAddMoney={openAddMoney}
       />
 
-      <div className="mt-6 -mx-1">
+      <motion.div
+        className="mt-6 origin-center"
+        animate={{ scale: selectedCat ? 1.05 : 1, y: selectedCat ? -18 : 0 }}
+        layout={false}
+        transition={DONUT_FOCUS_TRANSITION}
+      >
         <DonutHero
           transactions={state.transactions}
           balance={balance}
@@ -398,7 +438,7 @@ export function HomeContent() {
           onSelect={handleSelectCat}
           punchSignal={punch}
         />
-      </div>
+      </motion.div>
 
       <motion.div layout transition={SPRING} className="mt-6 space-y-3">
         <AnimatePresence initial={false} mode="popLayout">
@@ -408,8 +448,8 @@ export function HomeContent() {
               layout
               initial={{ opacity: 0, scale: 0.96, y: -8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: -8 }}
-              transition={SPRING}
+              exit={{ opacity: 0, scale: 0.96, y: -8, transition: SPRING }}
+              transition={{ ...SPRING, delay: 0.1 }}
             >
               <CategoryAnalyticsCard
                 categoryKey={selectedCat}
@@ -418,20 +458,22 @@ export function HomeContent() {
               />
             </motion.div>
           )}
-        </AnimatePresence>
-
-
-        <motion.div
-          layout
-          transition={SPRING}
-          className="rounded-[20px] border p-4"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            borderColor: "rgba(255,255,255,0.06)",
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
-          }}
-          data-tutorial="favorites"
-        >
+          {!selectedCat && (
+            <motion.div
+              key="favorites"
+              layout
+              initial={{ opacity: 0, scale: 0.96, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: -8, transition: SPRING }}
+              transition={{ ...SPRING, delay: 0.1 }}
+              className="rounded-[20px] border p-4"
+              style={{
+                background: "rgba(255,255,255,0.07)",
+                borderColor: "rgba(255,255,255,0.10)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12)",
+              }}
+              data-tutorial="favorites"
+            >
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.22em]" style={{ color: "rgba(255,255,255,0.35)" }}>
               Favourites
@@ -446,19 +488,25 @@ export function HomeContent() {
             onCreate={() => setFavEditorOpen(true)}
             hideHeader
           />
-        </motion.div>
+            </motion.div>
+          )}
 
-        <motion.div
-          layout
-          transition={SPRING}
-          className="rounded-[20px] border p-4"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            borderColor: "rgba(255,255,255,0.06)",
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
-          }}
-          data-tutorial="loops"
-        >
+          {!selectedCat && (
+            <motion.div
+              key="loops"
+              layout
+              initial={{ opacity: 0, scale: 0.96, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: -8, transition: SPRING }}
+              transition={SPRING}
+              className="rounded-[20px] border p-4"
+              style={{
+                background: "rgba(255,255,255,0.07)",
+                borderColor: "rgba(255,255,255,0.10)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12)",
+              }}
+              data-tutorial="loops"
+            >
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.22em]" style={{ color: "rgba(255,255,255,0.35)" }}>
               Loops
@@ -468,7 +516,9 @@ export function HomeContent() {
             </span>
           </div>
           <LoopsRow loops={state.loops} onCreate={() => setLoopEditorOpen(true)} hideHeader />
-        </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
 
@@ -522,6 +572,6 @@ export function HomeContent() {
         onSave={(updated) => saveTransaction(updated)}
         sheetTopPx={sheetTopPx}
       />
-    </div>
+    </motion.div>
   );
 }

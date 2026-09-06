@@ -7,6 +7,7 @@ import {
 import { Icon } from "./Icon";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useKeyboardOffset } from "@/hooks/useKeyboardOffset";
+import { useOverlayState } from "@/lib/OverlayContext";
 import {
   LENT_OUT_KEY,
   PAYMENT_METHODS,
@@ -43,7 +44,7 @@ interface Props {
   sheetTopPx?: number;
 }
 
-const SPRING = { type: "spring" as const, stiffness: 260, damping: 26, mass: 0.85 };
+const SPRING = { type: "spring" as const, stiffness: 220, damping: 28, mass: 0.9 };
 const DEFAULT_SHEET_TOP_PX = 96;
 
 type Mode = "normal" | "lend" | "items";
@@ -52,6 +53,7 @@ export function AddTransactionModal({
   open, onClose, onSave, direction, editing, prefill, currentBalance,
   overrides, onLearnCategory, sheetTopPx,
 }: Props) {
+  useOverlayState(open);
   const SHEET_TOP_PX = Math.max(88, sheetTopPx ?? DEFAULT_SHEET_TOP_PX);
   const isIncome = direction === "in";
   const [step, setStep] = useState(1);
@@ -217,23 +219,28 @@ export function AddTransactionModal({
     <AnimatePresence>
       {open && (
         <>
-          {/* Transparent click-catcher above the sheet (top bar area). No blur, no tint —
-              donut and top bar stay sharp & fully visible. */}
           <motion.div
-            className="fixed inset-x-0 top-0 z-40"
-            style={{ height: SHEET_TOP_PX, background: "transparent" }}
+            className="fixed inset-0 z-40 bg-transparent"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
           />
-          {/* Envelope sheet: slides up from FAB, leaves Balance visible */}
           <motion.div
             layoutId="fab"
-            className="fixed inset-x-0 z-50 overflow-hidden rounded-t-[28px] border-t border-white/10 bg-black"
+            className="fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[85vh] w-full max-w-md overflow-hidden overflow-x-hidden overflow-y-auto rounded-t-[28px] border-t border-white/10 bg-black"
             style={{ top: SHEET_TOP_PX, bottom: 0 }}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={SPRING}
+            initial={{ y: "100%", opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: "100%", opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 32, mass: 0.9 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.25 }}
+            dragMomentum={false}
+            onDragEnd={(event, info) => {
+              if (info.offset.y > 100 || info.velocity.y > 500) {
+                onClose();
+              }
+            }}
           >
             {/* Grey drag handle */}
             <div className="flex justify-center pt-3">
@@ -407,7 +414,7 @@ export function AddTransactionModal({
                     {/* category chip */}
                     {mode !== "lend" && !singleStep && (
                       <>
-                        <div className="mt-2 flex w-fit items-center gap-2">
+                        <div className="mt-2 flex w-fit items-center gap-2 min-h-[28px]">
                           <button
                             onClick={() => setCatPickerOpen((v) => !v)}
                             className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${showAutoCatBadge ? "category-border-magic" : ""}`}
@@ -420,19 +427,30 @@ export function AddTransactionModal({
                             <Icon name={cat.icon} size={12} strokeWidth={1.7} />
                             <span className="font-medium">{cat.label}</span>
                           </button>
-                          <AnimatePresence>
-                            {showAutoCatBadge && (
-                              <motion.p
-                                initial={{ opacity: 0, x: -6 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -6 }}
-                                transition={{ duration: 0.3 }}
-                                className="text-[10px] text-muted-foreground"
-                              >
-                                Automatically categorised
-                              </motion.p>
-                            )}
-                          </AnimatePresence>
+                          <div className="min-w-[132px]">
+                            <AnimatePresence mode="wait">
+                              {showAutoCatBadge ? (
+                                <motion.p
+                                  key="autocat"
+                                  initial={{ opacity: 0, x: -6 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  exit={{ opacity: 0, x: -6 }}
+                                  transition={{ duration: 0.22 }}
+                                  className="text-[10px] text-muted-foreground whitespace-nowrap"
+                                >
+                                  Automatically categorised
+                                </motion.p>
+                              ) : (
+                                <motion.div
+                                  key="autocat-placeholder"
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 0 }}
+                                  exit={{ opacity: 0 }}
+                                  className="h-[14px]"
+                                />
+                              )}
+                            </AnimatePresence>
+                          </div>
                         </div>
 
                         <AnimatePresence>

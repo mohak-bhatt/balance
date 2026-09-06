@@ -6,6 +6,7 @@ import { Icon } from "./Icon";
 import { IconPicker } from "./IconPicker";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useKeyboardOffset } from "@/hooks/useKeyboardOffset";
+import { useOverlayState } from "@/lib/OverlayContext";
 import { CATEGORIES, PAYMENT_METHODS, type Favorite, type PaymentMethod } from "@/lib/ledger";
 import { useCategoryColor } from "@/lib/themes";
 import { showInfo } from "@/lib/undo";
@@ -29,6 +30,7 @@ export function FavoriteEditor({
   open, onClose, favorites, onAdd, onUpdate, onDelete,
   mode = "manage", initialEdit = null,
 }: Props) {
+  useOverlayState(open);
   const [editingId, setEditingId] = useState<string | null>(null);
   const kb = useKeyboardOffset();
   const [label, setLabel] = useState("");
@@ -95,16 +97,27 @@ export function FavoriteEditor({
       {open && (
         <>
           <motion.div
-            className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-black/50"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
           />
           <motion.div
-            initial={{ y: "100%" }} animate={{ y: kb ? -kb : 0 }} exit={{ y: "100%" }}
-            transition={{ type: "spring", stiffness: 220, damping: 26 }}
-            className="fixed inset-x-0 bottom-0 z-50 max-h-[92vh] overflow-y-auto rounded-t-[32px] border-t p-5 pb-8"
+            initial={{ y: "100%", opacity: 0 }} animate={{ y: kb ? -kb : 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 32, mass: 0.9 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.5 }}
+            dragMomentum={false}
+            onDragEnd={(event, info) => {
+              if (info.offset.y > 100 || info.velocity.y > 500) {
+                onClose();
+              }
+            }}
+            className="fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[92vh] w-full max-w-md overflow-x-hidden overflow-y-auto rounded-t-[32px] border-t border-white/10 bg-black p-5 pb-8"
             style={{
-              background: "rgba(10,10,10,0.97)",
+              background: "rgba(15, 15, 15, 0.65)",
+              backdropFilter: "blur(10px) saturate(150%)",
+              WebkitBackdropFilter: "blur(10px) saturate(150%)",
               borderColor: "rgba(255,255,255,0.08)",
               boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 -20px 60px -20px rgba(0,0,0,0.8)",
             }}

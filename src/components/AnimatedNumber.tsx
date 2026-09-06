@@ -6,10 +6,11 @@ interface Props {
   prefix?: string;
   className?: string;
   decimals?: number;
+  initialValue?: number;
 }
 
-export function AnimatedNumber({ value, prefix = "₹", className, decimals = 0 }: Props) {
-  const mv = useMotionValue(value);
+export function AnimatedNumber({ value, prefix = "₹", className, decimals = 0, initialValue }: Props) {
+  const mv = useMotionValue(initialValue ?? value);
   const rounded = useTransform(mv, (v: number) => {
     const n = decimals > 0 ? v.toFixed(decimals) : Math.round(v).toLocaleString("en-IN");
     return prefix + n;

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useMotionValue, useTransform, type PanInfo } from "framer-motion";
-import { useState } from "react";
+import React, { useState } from "react";
 import { Trash2, ChevronRight, ArrowDownRight, ArrowUpRight, Pencil, Handshake, Check } from "lucide-react";
 import { Icon } from "./Icon";
 import { AnimatedNumber } from "./AnimatedNumber";
@@ -21,7 +21,48 @@ interface Props {
   matchReasons?: Record<string, string>;
 }
 
-export function TransactionList({
+const MOUNT_REVEAL_VARIANTS = {
+  hidden: { opacity: 0, filter: "blur(8px)", y: 12 },
+  visible: { opacity: 1, filter: "blur(0px)", y: 0 },
+};
+const HEADER_REVEAL_VARIANTS = {
+  hidden: { opacity: 0, filter: "blur(8px)", y: 12, scale: 0.96 },
+  visible: { opacity: 1, filter: "blur(0px)", y: 0, scale: 1 },
+};
+
+function MountReveal({
+  children, delay = 0, className,
+}: { children: React.ReactNode; delay?: number; className?: string }) {
+  return (
+    <motion.div
+      className={`reveal-compositor ${className ?? ""}`}
+      variants={MOUNT_REVEAL_VARIANTS}
+      initial="hidden"
+      animate="visible"
+      transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function HeaderReveal({
+  children, delay = 0, className,
+}: { children: React.ReactNode; delay?: number; className?: string }) {
+  return (
+    <motion.div
+      className={`reveal-compositor ${className ?? ""}`}
+      variants={HEADER_REVEAL_VARIANTS}
+      initial="hidden"
+      animate="visible"
+      transition={{ type: "spring", stiffness: 220, damping: 22, delay }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function TransactionListInner({
   transactions, onDelete, onEdit, onRepayLend, filterCategory, matchReasons,
 }: Props) {
   // For category filter, also match multi-item transactions whose items include that cat
@@ -44,12 +85,16 @@ export function TransactionList({
     );
   }
 
+  let revealIndex = 0;
   return (
     <div className="space-y-6">
       {months.map((mo) => (
         <div key={mo.key}>
           {/* Month header */}
-          <div className="mb-2 flex items-baseline justify-between px-1">
+          <HeaderReveal
+            delay={revealIndex++ * 0.04}
+            className="mb-2 flex items-baseline justify-between px-1"
+          >
             <h3 className="text-[11px] uppercase tracking-[0.22em] text-foreground/70">
               {mo.label}
             </h3>
@@ -60,7 +105,7 @@ export function TransactionList({
                 {mo.net >= 0 ? "Net " : "Net "}{formatCurrency(mo.net)}
               </span>
             </div>
-          </div>
+          </HeaderReveal>
 
           <div className="space-y-4">
             {mo.days.map(([label, items]) => {
@@ -68,17 +113,23 @@ export function TransactionList({
               const dayIn = items.filter((t) => t.direction === "in").reduce((s, t) => s + t.amount, 0);
               return (
                 <div key={`${mo.key}-${label}`}>
-                  <div className="mb-1.5 flex items-baseline justify-between px-1">
+                  <HeaderReveal
+                    delay={revealIndex++ * 0.04}
+                    className="mb-1.5 flex items-baseline justify-between px-1"
+                  >
                     <h4 className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</h4>
                     <span className="text-[11px] tabular-nums text-muted-foreground">
                       {dayIn > 0 && <span className="text-emerald-400/70">+{formatCurrency(dayIn)} </span>}
                       {dayOut > 0 && <span className="text-rose-400/70">−{formatCurrency(dayOut)}</span>}
                     </span>
-                  </div>
+                  </HeaderReveal>
                   <ul className="space-y-0">
-                    <AnimatePresence initial={false}>
+                    <AnimatePresence>
                       {items.map((t) => (
-                        <ScrollReveal key={t.id}>
+                        <MountReveal
+                          key={t.id}
+                          delay={revealIndex++ * 0.04}
+                        >
                           <SwipeRow
                             tx={t}
                             onDelete={() => onDelete(t.id)}
@@ -86,7 +137,7 @@ export function TransactionList({
                             onRepay={t.lentTo && !t.repaid ? () => onRepayLend?.(t) : undefined}
                             matchReason={matchReasons?.[t.id]}
                           />
-                        </ScrollReveal>
+                        </MountReveal>
                       ))}
                     </AnimatePresence>
                   </ul>
@@ -100,6 +151,7 @@ export function TransactionList({
   );
 }
 
+export const TransactionList = React.memo(TransactionListInner);
 function SwipeRow({
   tx, onDelete, onEdit, onRepay, matchReason,
 }: {

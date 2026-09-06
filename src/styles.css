@@ -95,8 +95,8 @@
 /* Liquid-glass surface */
 @utility glass {
   background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015));
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   border: 1px solid rgba(255,255,255,0.07);
   box-shadow:
     0 1px 0 rgba(255,255,255,0.05) inset,
@@ -105,15 +105,15 @@
 
 @utility glass-strong {
   background: linear-gradient(180deg, rgba(22,22,22,0.94), rgba(8,8,8,0.94));
-  backdrop-filter: blur(28px) saturate(160%);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
   border: 1px solid rgba(255,255,255,0.08);
 }
 
 @utility liquid-glass {
   background: radial-gradient(120% 120% at 50% 0%, rgba(40,40,40,0.85), rgba(10,10,10,0.85));
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(9px) saturate(180%);
+  -webkit-backdrop-filter: blur(9px) saturate(180%);
   border: 1px solid rgba(255,255,255,0.10);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.18),
@@ -134,8 +134,8 @@
 /* Static Nothing-OS style floating circle (no animated glow). */
 @utility nothing-fab {
   background: linear-gradient(180deg, rgba(34,34,34,0.72), rgba(14,14,14,0.72));
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(8px) saturate(160%);
+  -webkit-backdrop-filter: blur(8px) saturate(160%);
   border: 1px solid rgba(255,255,255,0.08);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.12),
@@ -189,4 +189,10 @@
   mask-composite: exclude;
   animation: category-float-glow 2s ease-in-out infinite;
   z-index: -1;
+}
+
+.reveal-compositor {
+  will-change: transform, opacity, filter;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }

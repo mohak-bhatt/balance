@@ -5,6 +5,7 @@ import { Delete, X } from "lucide-react";
 import { Icon } from "./Icon";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useKeyboardOffset } from "@/hooks/useKeyboardOffset";
+import { useOverlayState } from "@/lib/OverlayContext";
 import {
   LENT_OUT_KEY,
   PAYMENT_METHODS,
@@ -24,10 +25,11 @@ interface Props {
   sheetTopPx?: number;
 }
 
-const SPRING = { type: "spring" as const, stiffness: 260, damping: 26, mass: 0.85 };
+const SPRING = { type: "spring" as const, stiffness: 220, damping: 28, mass: 0.9 };
 const DEFAULT_SHEET_TOP_PX = 96;
 
 export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: Props) {
+  useOverlayState(open && !!tx);
   const SHEET_TOP_PX = Math.max(88, sheetTopPx ?? DEFAULT_SHEET_TOP_PX);
   const [title, setTitle] = useState("");
   const [editingTitle, setEditingTitle] = useState(false);
@@ -117,12 +119,21 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
             onClick={onClose}
           />
           <motion.div
-            className="fixed inset-x-0 z-[130] overflow-hidden rounded-t-[28px] border-t border-white/10 bg-black"
+            className="fixed inset-x-0 z-[130] mx-auto w-full max-w-md overflow-hidden overflow-x-hidden rounded-t-[28px] border-t border-white/10 bg-black"
             style={{ top: SHEET_TOP_PX, bottom: 0 }}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={SPRING}
+            initial={{ y: "100%", opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: "100%", opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 32, mass: 0.9 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.25 }}
+            dragMomentum={false}
+            onDragEnd={(event, info) => {
+              if (info.offset.y > 100 || info.velocity.y > 500) {
+                onClose();
+              }
+            }}
           >
             <div className="flex justify-center pt-3">
               <div className="h-1.5 w-12 rounded-full bg-white/20" />

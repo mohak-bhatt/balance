@@ -28,6 +28,7 @@ import {
 import { showUndo } from "@/lib/undo";
 import { ScrollReveal } from "@/components/ScrollReveal";
 import mackieb from "@/assets/mackie-b.png";
+import { useAuth } from "@/lib/AuthContext";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Balance" }] }),
@@ -69,7 +70,7 @@ function SettingsPage() {
 
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [loops, setLoops] = useState<Loop[]>([]);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const { userEmail, session } = useAuth();
 
   const [favEditOpen, setFavEditOpen] = useState(false);
   const [favEditTarget, setFavEditTarget] = useState<Favorite | null>(null);
@@ -86,9 +87,6 @@ function SettingsPage() {
     setFavorites(s.favorites);
     setLoops(s.loops);
     loadAvatar().then(setAvatar);
-    supabase.auth.getSession().then(({ data }) => {
-      setUserEmail(data.session?.user?.email ?? null);
-    });
   }, []);
 
   useBodyScrollLock(customOpen || photoViewerOpen || confirmRemovePhoto || confirmReset || confirmLogout);
@@ -210,9 +208,8 @@ function SettingsPage() {
   };
 
   const resetApp = async () => {
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.user) {
-      const userId = data.session.user.id;
+    if (session?.user) {
+      const userId = session.user.id;
       await supabase.from("transactions").delete().eq("user_id", userId);
       await supabase.from("favorites").delete().eq("user_id", userId);
       await supabase.from("loops").delete().eq("user_id", userId);
@@ -229,9 +226,9 @@ function SettingsPage() {
       <motion.div
         initial={{ y: 24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 300, damping: 32, mass: 0.8 }}
+        transition={{ type: "spring", stiffness: 260, damping: 34, mass: 0.9 }}
         className="relative mx-auto min-h-screen w-full max-w-md px-5 pb-32"
-        style={{ paddingTop: 52 }}
+        style={{ paddingTop: 52, background: "#000000", minHeight: "100vh", overflowX: "hidden", WebkitOverflowScrolling: "touch" }}
       >
         <div className="flex items-center justify-between">
           <Link to="/" className="grid h-10 w-10 place-items-center -ml-2">
@@ -411,6 +408,9 @@ function SettingsPage() {
             >
               <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground text-center mb-3">
                 Theme
+              </p>
+              <p className="text-xs text-muted-foreground text-center mb-4">
+               Sets the colors used for category pills throughout the app
               </p>
               <div className="space-y-2">
                 {THEME_META.map((m) => (
@@ -669,14 +669,23 @@ function CustomThemeSheet({
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 grid place-items-end bg-black/70 sm:place-items-center"
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 sm:place-items-center"
       onClick={onClose}
     >
       <motion.div
         initial={{ y: 40, scale: 0.96, opacity: 0 }}
         animate={{ y: 0, scale: 1, opacity: 1 }}
         exit={{ y: 40, scale: 0.96, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 200, damping: 24 }}
+        transition={{ type: "spring", stiffness: 400, damping: 32, mass: 0.9 }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 0.5 }}
+        dragMomentum={false}
+        onDragEnd={(event, info) => {
+          if (info.offset.y > 100 || info.velocity.y > 500) {
+            onClose();
+          }
+        }}
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
         className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-t-3xl border-t p-5 sm:rounded-3xl sm:border"
         style={{

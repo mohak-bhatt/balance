@@ -232,166 +232,167 @@ export function HistoryContent() {
   }, [baseFiltered, searchFocused, search]);
 
   return (
-    <div
+    <motion.div
+      transition={{ type: "spring", stiffness: 260, damping: 34, mass: 0.9 }}
+      style={{ paddingTop: 52, background: "#000000", minHeight: "100vh", overflowX: "hidden", WebkitOverflowScrolling: "touch" }}
       className="relative mx-auto min-h-screen w-full max-w-md px-5 pb-32"
-      style={{ paddingTop: 52 }}
       onTouchStart={(e) => {
-        if (window.scrollY === 0 && !searchFocused) {
-          touchStartY.current = e.touches[0].clientY;
-          isPulling.current = true;
-        }
-      }}
-      onTouchMove={(e) => {
-        if (!isPulling.current || touchStartY.current === null) return;
-        const delta = e.touches[0].clientY - touchStartY.current;
-        if (delta > 0 && window.scrollY === 0) {
-          setPullDistance(Math.min(delta, 80));
-        } else {
-          isPulling.current = false;
-          setPullDistance(0);
-        }
-      }}
-      onTouchEnd={() => {
-        if (pullDistance > 40) {
-          setSearchFocused(true);
-          setTimeout(() => searchInputRef.current?.focus(), 50);
-        }
-        setPullDistance(0);
-        isPulling.current = false;
-        touchStartY.current = null;
-      }}
-    >
-      <motion.div
-        animate={{
-          filter: pullDistance > 0 ? `blur(${Math.min(pullDistance / 8, 6)}px)` : "blur(0px)",
-          opacity: pullDistance > 0 ? Math.max(1 - pullDistance / 100, 0.4) : 1,
-        }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="relative z-30 flex flex-col items-center text-center"
-      >
-        <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">History</p>
-        <p className="font-mono-display text-base text-foreground/90">
-          {searchFocused ? filtered.length : baseFiltered.length} entries
-        </p>
-      </motion.div>
-
-      <motion.div
-        animate={{
-          scale: searchFocused ? 1.03 : 1,
-          paddingTop: searchFocused ? 14 : 12,
-          paddingBottom: searchFocused ? 14 : 12,
-          y: pullDistance > 0 ? pullDistance * 0.4 : 0,
-          opacity: pullDistance > 0 ? Math.min(0.6 + pullDistance / 80, 1) : 1,
-        }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="rounded-[20px] border mt-4"
-        style={{
-          background: "rgba(255,255,255,0.03)",
-          borderColor: "rgba(255,255,255,0.06)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
-          paddingLeft: 12,
-          paddingRight: 12,
-          paddingTop: 12,
-          paddingBottom: 12,
-        }}
-      >
-        <div className="flex items-center gap-3 h-5" style={{ lineHeight: "1.25rem" }}>
-          <Search size={16} strokeWidth={1.5} className="shrink-0 text-muted-foreground" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            className="min-w-0 flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis"
-            style={{ lineHeight: "1.25rem" }}
-            placeholder="Search transactions"
-            value={search}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => {
-              if (search.trim() === "") setSearchFocused(false);
+            if (window.scrollY === 0 && !searchFocused) {
+              touchStartY.current = e.touches[0].clientY;
+              isPulling.current = true;
+            }
+          }}
+          onTouchMove={(e) => {
+            if (!isPulling.current || touchStartY.current === null) return;
+            const delta = e.touches[0].clientY - touchStartY.current;
+            if (delta > 0 && window.scrollY === 0) {
+              setPullDistance(Math.min(delta, 80));
+            } else {
+              isPulling.current = false;
+              setPullDistance(0);
+            }
+          }}
+          onTouchEnd={() => {
+            if (pullDistance > 40) {
+              setSearchFocused(true);
+              setTimeout(() => searchInputRef.current?.focus(), 50);
+            }
+            setPullDistance(0);
+            isPulling.current = false;
+            touchStartY.current = null;
+          }}
+        >
+          <motion.div
+            animate={{
+              filter: pullDistance > 0 ? `blur(${Math.min(pullDistance / 8, 6)}px)` : "blur(0px)",
+              opacity: pullDistance > 0 ? Math.max(1 - pullDistance / 100, 0.4) : 1,
             }}
-            onChange={(event) => setSearch(event.target.value)}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="relative z-30 flex flex-col items-center text-center"
+          >
+            <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">History</p>
+            <p className="font-mono-display text-base text-foreground/90">
+              {searchFocused ? filtered.length : baseFiltered.length} entries
+            </p>
+          </motion.div>
+
+          <motion.div
+            animate={{
+              scale: searchFocused ? 1.03 : 1,
+              paddingTop: searchFocused ? 14 : 12,
+              paddingBottom: searchFocused ? 14 : 12,
+              y: pullDistance > 0 ? pullDistance * 0.4 : 0,
+              opacity: pullDistance > 0 ? Math.min(0.6 + pullDistance / 80, 1) : 1,
+            }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="rounded-[20px] border mt-4"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              borderColor: "rgba(255,255,255,0.06)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+              paddingLeft: 12,
+              paddingRight: 12,
+              paddingTop: 12,
+              paddingBottom: 12,
+            }}
+          >
+            <div className="flex items-center gap-3 h-5" style={{ lineHeight: "1.25rem" }}>
+              <Search size={16} strokeWidth={1.5} className="shrink-0 text-muted-foreground" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="min-w-0 flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis"
+                style={{ lineHeight: "1.25rem" }}
+                placeholder="Search transactions"
+                value={search}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => {
+                  if (search.trim() === "") setSearchFocused(false);
+                }}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              {search.trim() !== "" ? (
+                <button
+                  type="button"
+                  className="shrink-0 grid h-5 w-5 place-items-center rounded-full text-muted-foreground hover:bg-white/10"
+                  onClick={() => {
+                    setSearch("");
+                    setSearchFocused(false);
+                    searchInputRef.current?.blur();
+                  }}
+                  aria-label="Clear search"
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          </motion.div>
+
+          <motion.div
+            animate={{
+              filter: pullDistance > 0 ? `blur(${Math.min(pullDistance / 8, 6)}px)` : "blur(0px)",
+              opacity: pullDistance > 0 ? Math.max(1 - pullDistance / 100, 0.4) : 1,
+            }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          >
+            <div data-swipe-ignore className="hide-scrollbar mt-5 -mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1">
+              {FILTERS.map((f) => {
+                const sel = filter === f.key;
+                return (
+                  <button
+                    key={f.key}
+                    onClick={() => { setFilter(f.key); haptic("tick"); }}
+                    className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] ${
+                      sel
+                        ? "border-white/40 text-foreground bg-white/[0.06]"
+                        : "border-white/10 text-muted-foreground"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 h-px w-full bg-white/[0.06]" />
+
+            <div className="mt-4">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={searchFocused ? "search" : "browse"}
+                  initial={{ opacity: 1 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {filtered.length === 0 ? (
+                    <p className="mt-16 text-center text-sm text-muted-foreground">
+                      {searchFocused
+                        ? search.trim() === ""
+                          ? "Start typing to search"
+                          : "No transactions match your search."
+                        : "No transactions."}
+                    </p>
+                  ) : (
+                    <TransactionList
+                      transactions={filtered}
+                      onDelete={deleteTx}
+                      onEdit={(tx) => setEditTx(tx)}
+                      onRepayLend={repayLend}
+                      matchReasons={matchReasons}
+                    />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </motion.div>
+
+          <EditTransactionPopup
+            open={!!editTx}
+            tx={editTx}
+            onClose={() => setEditTx(null)}
+            onSave={saveEdit}
           />
-          {search.trim() !== "" ? (
-            <button
-              type="button"
-              className="shrink-0 grid h-5 w-5 place-items-center rounded-full text-muted-foreground hover:bg-white/10"
-              onClick={() => {
-                setSearch("");
-                setSearchFocused(false);
-                searchInputRef.current?.blur();
-              }}
-              aria-label="Clear search"
-            >
-              ×
-            </button>
-          ) : null}
-        </div>
       </motion.div>
-
-      <motion.div
-        animate={{
-          filter: pullDistance > 0 ? `blur(${Math.min(pullDistance / 8, 6)}px)` : "blur(0px)",
-          opacity: pullDistance > 0 ? Math.max(1 - pullDistance / 100, 0.4) : 1,
-        }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      >
-        <div className="hide-scrollbar mt-5 -mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1">
-          {FILTERS.map((f) => {
-            const sel = filter === f.key;
-            return (
-              <button
-                key={f.key}
-                onClick={() => { setFilter(f.key); haptic("tick"); }}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] ${
-                  sel
-                    ? "border-white/40 text-foreground bg-white/[0.06]"
-                    : "border-white/10 text-muted-foreground"
-                }`}
-              >
-                {f.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-3 h-px w-full bg-white/[0.06]" />
-
-        <div className="mt-4">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={searchFocused ? "search" : "browse"}
-              initial={{ opacity: 1 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-            >
-              {filtered.length === 0 ? (
-                <p className="mt-16 text-center text-sm text-muted-foreground">
-                  {searchFocused
-                    ? search.trim() === ""
-                      ? "Start typing to search"
-                      : "No transactions match your search."
-                    : "No transactions."}
-                </p>
-              ) : (
-                <TransactionList
-                  transactions={filtered}
-                  onDelete={deleteTx}
-                  onEdit={(tx) => setEditTx(tx)}
-                  onRepayLend={repayLend}
-                  matchReasons={matchReasons}
-                />
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </motion.div>
-
-      <EditTransactionPopup
-        open={!!editTx}
-        tx={editTx}
-        onClose={() => setEditTx(null)}
-        onSave={saveEdit}
-      />
-    </div>
   );
 }

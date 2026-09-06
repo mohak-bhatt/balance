@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, useSpring } from "framer-motion";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatedNumber } from "./AnimatedNumber";
 import {
@@ -11,6 +11,7 @@ import { useCategoryColor } from "@/lib/themes";
 import { haptic } from "@/lib/haptics";
 
 const LENT_OUT_COLOR = "#6B7280";
+let hasPlayedIntroThisSession = false;
 
 interface Props {
   transactions: Transaction[];
@@ -73,13 +74,14 @@ export function DonutHero({
   const total = breakdown.reduce((s, b) => s + b.amount, 0) || 1;
 
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState(280);
+  const [size, setSize] = useState(320);
   useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
     const update = () => {
       const w = el.getBoundingClientRect().width;
-      if (w > 0) setSize(Math.round(w));
+      const nextSize = Math.max(300, Math.round(w * 0.96));
+      if (w > 0) setSize(nextSize);
     };
     update();
     const ro = new ResizeObserver(update);
@@ -88,8 +90,8 @@ export function DonutHero({
   }, []);
 
   const cx = size / 2, cy = size / 2;
-  const rOuter = size * (130 / 280);
-  const rInner = size * (100 / 280);
+  const rOuter = size * (130 / 280) + 6;
+  const rInner = size * (100 / 280) - 3;
   const gap = 2.5;
   // V7: text reduced to ~65% of previous size
   const titleFontPx = Math.round(size * (30 / 280));
@@ -110,6 +112,20 @@ export function DonutHero({
       });
 
   const selectedSeg = segments.find((s) => s.key === selected) ?? null;
+  const [expandedKey, setExpandedKey] = useState<string | null>(selected);
+  const selectionGrowth = useSpring(0, { stiffness: 200, damping: 20 });
+  const [growth, setGrowth] = useState(0);
+
+  useEffect(() => {
+    if (selected) setExpandedKey(selected);
+    selectionGrowth.set(selected ? 3 : 0);
+  }, [selected, selectionGrowth]);
+  useEffect(() => selectionGrowth.on("change", setGrowth), [selectionGrowth]);
+  const [animateIntro] = useState(() => {
+    if (hasPlayedIntroThisSession) return false;
+    hasPlayedIntroThisSession = true;
+    return true;
+  });
 
   const selectedTxCount = useMemo(() => {
     if (!selected) return 0;
@@ -134,6 +150,7 @@ export function DonutHero({
     <div ref={wrapRef} className="relative w-full" style={{ height: size }} data-tutorial="donut">
       <motion.svg
         width={size} height={size} viewBox={`0 0 ${size} ${size}`}
+        style={{ display: "block", margin: "0 auto" }}
         animate={{ scale: punch ? 1.07 : 1 }}
         transition={{ type: "spring", stiffness: 320, damping: 14 }}
       >
@@ -154,15 +171,16 @@ export function DonutHero({
             stroke="rgba(255,255,255,0.08)" strokeWidth={rOuter - rInner} fill="none" />
         ) : (
           segments.map((s) => {
-            const isSel = selected === s.key;
-            const dimmed = selected && !isSel;
-            const r1 = isSel ? rOuter + 6 : rOuter;
-            const r2 = isSel ? rInner - 3 : rInner;
+            const isSelected = selected === s.key;
+            const isExpanded = expandedKey === s.key;
+            const dimmed = selected && !isSelected;
+            const r1 = isExpanded ? rOuter + growth : rOuter;
+            const r2 = isExpanded ? rInner - growth / 2 : rInner;
             const d = arcPath(cx, cy, r1, r2, s.start, s.end);
             const fill = s.key === LENT_OUT_KEY ? "url(#lent-hatch)" : s.color;
             return (
               <g key={s.key}
-                 onClick={() => { haptic("medium"); onSelect(isSel ? null : s.key); }}
+                 onClick={() => { haptic("medium"); onSelect(isSelected ? null : s.key); }}
                  style={{ cursor: "pointer" }}>
                 <motion.path
                   d={d}
@@ -178,32 +196,28 @@ export function DonutHero({
         )}
       </motion.svg>
 
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+      <div
+        className="pointer-events-none absolute top-0 left-1/2 box-border flex -translate-x-1/2 flex-col items-center justify-center px-6 text-center"
+        style={{ width: size, height: size }}
+      >
         {selectedSeg ? (
-          <>
-            <p className="uppercase tracking-[0.3em]" style={{ color: selectedSeg.color, fontSize: microFontPx }}>
-              {selectedSeg.cat.label}
-            </p>
-            <motion.div
-              className="font-mono-display font-light leading-none"
-              style={{ color: selectedSeg.color, fontSize: segTitleFontPx }}
-            >
-              <AnimatedNumber value={selectedSeg.amount} />
-            </motion.div>
-          </>
+          <p className="uppercase tracking-[0.3em]" style={{ color: selectedSeg.color, fontSize: microFontPx }}>
+            {selectedSeg.cat.label}
+          </p>
         ) : (
-          <>
-            <p className="uppercase tracking-[0.3em] text-muted-foreground" style={{ fontSize: microFontPx }}>
-              Spent this month
-            </p>
-            <motion.div
-              className="font-mono-display font-light leading-none text-foreground/95"
-              style={{ fontSize: titleFontPx }}
-            >
-              <AnimatedNumber value={spentThisMonth} />
-            </motion.div>
-          </>
+          <p className="uppercase tracking-[0.3em] text-muted-foreground" style={{ fontSize: microFontPx }}>
+            Spent this month
+          </p>
         )}
+        <motion.div
+          className="font-mono-display font-light leading-none"
+          style={{ color: selectedSeg?.color, fontSize: selectedSeg ? segTitleFontPx : titleFontPx }}
+        >
+          <AnimatedNumber
+            value={selectedSeg?.amount ?? spentThisMonth}
+            initialValue={animateIntro ? 0 : selectedSeg?.amount ?? spentThisMonth}
+          />
+        </motion.div>
       </div>
     </div>
   );

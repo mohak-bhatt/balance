@@ -6,6 +6,7 @@ import { loadState, saveState, type BalancesByMethod, type PaymentMethod, type T
 import { initials, loadAvatar, saveAvatar } from "@/lib/avatar";
 import { YellowArrowButton, YellowPillButton } from "@/components/YellowArrow";
 import { TextGenerateEffect } from "@/components/TextGenerateEffect";
+import { CropImageSheet } from "@/components/CropImageSheet";
 import { GreyscaleGradientBackground } from "@/components/GreyscaleGradientBackground";
 import { useKeyboardOffset } from "@/hooks/useKeyboardOffset";
 import { supabase } from "@/lib/supabase";
@@ -48,6 +49,7 @@ function Onboarding() {
   });
   const [committedName, setCommittedName] = useState("");
   const [avatar, setAvatar] = useState<string | null>(null);
+    const [cropFile, setCropFile] = useState<File | null>(null);
   const hasHandledSignIn = useRef(false);
   const [loginEmail, setLoginEmail] = useState<string | null>(null);
   const [loginChecking, setLoginChecking] = useState(false);
@@ -55,6 +57,12 @@ function Onboarding() {
 
   const [error, setError] = useState<string | null>(null);
   const [balanceError, setBalanceError] = useState<string | null>(null);
+
+  const onPickFile = (file: File) => {
+    setError(null);
+    if (file.size > 20 * 1024 * 1024) { setError("Image must be under 20MB"); return; }
+    setCropFile(file);
+  };
 
   useEffect(() => {
     if (step === 1 && !loginEmail) {
@@ -154,13 +162,6 @@ function Onboarding() {
 
     setBalanceError(null);
     return true;
-  };
-
-  const onPickFile = async (f: File) => {
-    setError(null);
-    if (f.size > 20 * 1024 * 1024) { setError("Image must be under 20MB"); return; }
-    await saveAvatar(f);
-    setAvatar(await loadAvatar());
   };
 
   const Step = ({ children }: { children: React.ReactNode }) => (
@@ -456,6 +457,15 @@ function Onboarding() {
           Back
         </button>
       )}
+      <CropImageSheet
+        file={cropFile}
+        onCancel={() => setCropFile(null)}
+        onComplete={async (blob) => {
+          await saveAvatar(blob);
+          setAvatar(await loadAvatar());
+          setCropFile(null);
+        }}
+      />
     </motion.div>
   );
 }

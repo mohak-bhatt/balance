@@ -10,6 +10,7 @@ import {
   type Favorite, type Loop,
 } from "@/lib/ledger";
 import { Icon } from "@/components/Icon";
+import { CropImageSheet } from "@/components/CropImageSheet";
 import { FavoriteEditor } from "@/components/FavoriteEditor";
 import { LoopEditor } from "@/components/LoopEditor";
 import { SwipeDeleteRow } from "@/components/SwipeDeleteRow";
@@ -66,6 +67,7 @@ function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+    const [cropFile, setCropFile] = useState<File | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
 
   const [confirmRemovePhoto, setConfirmRemovePhoto] = useState(false);
@@ -193,9 +195,7 @@ function SettingsPage() {
   const onPickFile = async (f: File) => {
     setError(null);
     if (f.size > 20 * 1024 * 1024) { setError("Image must be under 20MB"); return; }
-    await saveAvatar(f);
-    const url = await loadAvatar();
-    setAvatar(url);
+    setCropFile(f);
   };
   const removePhoto = async () => {
     await clearAvatar();
@@ -611,6 +611,15 @@ function SettingsPage() {
         onDelete={deleteLoop}
         mode="compact"
         initialEdit={loopEditTarget}
+      />
+      <CropImageSheet
+        file={cropFile}
+        onCancel={() => setCropFile(null)}
+        onComplete={async (blob) => {
+          await saveAvatar(blob);
+          setAvatar(await loadAvatar());
+          setCropFile(null);
+        }}
       />
 
       <AnimatePresence>

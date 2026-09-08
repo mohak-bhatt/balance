@@ -5,6 +5,7 @@ import { HistoryContent } from "@/components/HistoryContent";
 import { BottomPill } from "@/components/BottomPill";
 import { haptic } from "@/lib/haptics";
 import { useNavigate } from "@tanstack/react-router";
+import { useRouteBackToHome } from "@/hooks/useRouteBackToHome";
 
 export const Route = createFileRoute("/history")({
   head: () => ({
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/history")({
 
 function HistoryPage() {
   const navigate = useNavigate();
+  useRouteBackToHome(() => navigate({ to: "/" }));
 
   const onDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.x < -80 || info.velocity.x < -500) {

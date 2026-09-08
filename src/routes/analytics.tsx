@@ -5,6 +5,7 @@ import { AnalyticsContent } from "@/components/AnalyticsContent";
 import { BottomPill } from "@/components/BottomPill";
 import { haptic } from "@/lib/haptics";
 import { useNavigate } from "@tanstack/react-router";
+import { useRouteBackToHome } from "@/hooks/useRouteBackToHome";
 
 export const Route = createFileRoute("/analytics")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/analytics")({
 function AnalyticsPage() {
   const { tab } = Route.useSearch();
   const navigate = useNavigate();
+  useRouteBackToHome(() => navigate({ to: "/" }));
 
   const onDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.x > 80 || info.velocity.x > 500) {

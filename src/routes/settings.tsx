@@ -32,6 +32,7 @@ import { ScrollReveal } from "@/components/ScrollReveal";
 import mackieb from "@/assets/mackie-b.png";
 import { useAuth } from "@/lib/AuthContext";
 import { useOverlayState } from "@/lib/OverlayContext";
+import { useRouteBackToHome } from "@/hooks/useRouteBackToHome";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Balance" }] }),
@@ -57,6 +58,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 
 function SettingsPage() {
   const navigate = useNavigate();
+  useRouteBackToHome(() => navigate({ to: "/" }));
   const [name, setName] = useState("");
   const [weeklyNotif, setWeeklyNotif] = useState(false);
   const [monthlyNotif, setMonthlyNotif] = useState(false);

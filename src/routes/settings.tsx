@@ -242,7 +242,6 @@ function SettingsPage() {
         <ScrollReveal once>
           <section className="mt-10 flex flex-col items-center gap-4">
             <motion.button
-              layoutId="avatar-hero"
               onClick={() => setPhotoViewerOpen(true)}
               whileTap={{ scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400, damping: 20 }}
@@ -291,7 +290,7 @@ function SettingsPage() {
         </ScrollReveal>
 
         {/* Manage Favourites */}
-        <ScrollReveal>
+        <ScrollReveal once>
           <section className="mt-12">
             <div
               className="rounded-[20px] border p-4"
@@ -341,7 +340,7 @@ function SettingsPage() {
         </ScrollReveal>
 
         {/* Manage Loops */}
-        <ScrollReveal>
+        <ScrollReveal once>
           <section className="mt-12">
             <div
               className="rounded-[20px] border p-4"
@@ -396,7 +395,7 @@ function SettingsPage() {
         </ScrollReveal>
 
         {/* Theme */}
-        <ScrollReveal>
+        <ScrollReveal once>
           <section className="mt-12">
             <div
               className="rounded-[20px] border p-4"
@@ -444,7 +443,7 @@ function SettingsPage() {
         </ScrollReveal>
 
         {/* Notifications */}
-        <ScrollReveal>
+        <ScrollReveal once>
           <section className="mt-12">
             <div
               className="rounded-[20px] border p-4"
@@ -470,7 +469,7 @@ function SettingsPage() {
         </ScrollReveal>
 
         {/* App behavior */}
-        <ScrollReveal>
+        <ScrollReveal once>
           <section className="mt-12">
             <div
               className="rounded-[20px] border p-4"
@@ -498,7 +497,7 @@ function SettingsPage() {
         </ScrollReveal>
 
         {/* Danger Zone */}
-        <ScrollReveal>
+        <ScrollReveal once>
           <section className="mt-12">
             <div
               className="rounded-[20px] border p-4"
@@ -528,7 +527,7 @@ function SettingsPage() {
         </ScrollReveal>
 
         {/* Credits */}
-        <ScrollReveal>
+        <ScrollReveal once>
           <section className="mt-16 flex flex-col items-center text-center">
             <img
               src={mackieb}

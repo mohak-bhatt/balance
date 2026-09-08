@@ -469,6 +469,34 @@ function SettingsPage() {
           </section>
         </ScrollReveal>
 
+        {/* App behavior */}
+        <ScrollReveal>
+          <section className="mt-12">
+            <div
+              className="rounded-[20px] border p-4"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                borderColor: "rgba(255,255,255,0.06)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+              }}
+            >
+              <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground text-center mb-3">
+                App behavior
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.setItem("balance:startTutorial", "1");
+                  navigate({ to: "/" });
+                }}
+                className="w-full rounded-xl border border-white/40 px-4 py-3 text-sm text-white"
+              >
+                Replay tutorial
+              </button>
+            </div>
+          </section>
+        </ScrollReveal>
+
         {/* Danger Zone */}
         <ScrollReveal>
           <section className="mt-12">

@@ -373,6 +373,49 @@ export function rememberCategoryChoice(
   return { ...overrides, [t]: categoryKey };
 }
 
+export interface CategoryMigrationStats {
+  transactionsScanned: number;
+  transactionsReassigned: number;
+}
+
+export function migrateCategoriesToV2(state: BalanceState): {
+  state: BalanceState;
+  stats: CategoryMigrationStats;
+} {
+  const validCategoryKeys = new Set(CATEGORIES.map((category) => category.key));
+  const validOverrides = Object.fromEntries(
+    Object.entries(state.categorizationOverrides).filter(([, key]) => validCategoryKeys.has(key)),
+  );
+  let transactionsReassigned = 0;
+
+  const transactions = state.transactions.map((transaction) => {
+    if (transaction.category === "opening_balance" || transaction.category === LENT_OUT_KEY) {
+      return transaction;
+    }
+
+    const text = `${transaction.title} ${transaction.note ?? ""}`.trim();
+    const matched = matchCategory(text, {
+      overrides: validOverrides,
+      direction: transaction.direction,
+    });
+    if (matched.key === transaction.category) return transaction;
+    transactionsReassigned += 1;
+    return { ...transaction, category: matched.key, icon: matched.icon };
+  });
+
+  return {
+    state: {
+      ...state,
+      transactions,
+      categorizationOverrides: validOverrides,
+    },
+    stats: {
+      transactionsScanned: state.transactions.length,
+      transactionsReassigned,
+    },
+  };
+}
+
 export function getCategory(key: string): CategoryDef {
   return CATEGORIES.find((c) => c.key === key) ?? CATEGORIES.find((c) => c.key === "misc")!;
 }

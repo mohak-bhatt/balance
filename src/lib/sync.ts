@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import {
   DEFAULT_STATE,
+  migrateCategoriesToV2,
   type BalanceState,
   type Favorite,
   type Loop,
@@ -230,6 +231,39 @@ export async function pushToCloud(userId: string, state: BalanceState): Promise<
   } catch (error) {
     console.error("pushToCloud failed", error);
   }
+}
+
+export async function migrateCloudTransactionCategories(
+  userId: string,
+  categorizationOverrides: Record<string, string>,
+): Promise<{ transactionsScanned: number; transactionsReassigned: number }> {
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("user_id", userId);
+  if (error) throw error;
+
+  const cloudState = {
+    ...DEFAULT_STATE,
+    transactions: (data ?? []).map((row: Record<string, any>) => mapTransactionRow(row)),
+    categorizationOverrides,
+  };
+  const { state: migratedState, stats } = migrateCategoriesToV2(cloudState);
+  const changedTransactions = migratedState.transactions.filter((transaction, index) =>
+    transaction.category !== cloudState.transactions[index].category ||
+    transaction.icon !== cloudState.transactions[index].icon,
+  );
+
+  const results = await Promise.all(changedTransactions.map((transaction) =>
+    supabase
+      .from("transactions")
+      .update({ category: transaction.category, icon: transaction.icon })
+      .eq("id", transaction.id)
+      .eq("user_id", userId),
+  ));
+  const updateError = results.find((result) => result.error)?.error;
+  if (updateError) throw updateError;
+  return stats;
 }
 
 export async function syncOnLogin(userId: string, localState: BalanceState): Promise<BalanceState> {

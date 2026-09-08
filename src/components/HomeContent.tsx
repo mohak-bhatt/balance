@@ -14,6 +14,8 @@ import { FavoritePaymentPopup } from "@/components/FavoritePaymentPopup";
 import { EditTransactionPopup } from "@/components/EditTransactionPopup";
 import { CategoryAnalyticsCard } from "@/components/CategoryAnalyticsCard";
 import { useFocusMode } from "@/lib/FocusModeContext";
+import { useAuth } from "@/lib/AuthContext";
+import { migrateCloudTransactionCategories } from "@/lib/sync";
 import { useAvatar } from "@/lib/avatar";
 import { haptic } from "@/lib/haptics";
 import { showUndo } from "@/lib/undo";
@@ -24,6 +26,7 @@ import {
   formatCurrency,
   getCategory,
   loadState,
+  migrateCategoriesToV2,
   rememberCategoryChoice,
   saveState,
   type BalanceState,
@@ -38,6 +41,7 @@ const SPRING = { type: "spring" as const, stiffness: 180, damping: 28, mass: 1 }
 const FOCUS_TRANSITION = SPRING;
 const DONUT_FOCUS_TRANSITION = { type: "spring" as const, stiffness: 220, damping: 28, mass: 0.9, delay: 0 };
 const DEFAULT_SHEET_TOP_PX = 96;
+const CATEGORY_MIGRATION_FLAG = "balance:category-migration-v2-done";
 
 function applyTransactionDelta(s: BalanceState, tx: Transaction, sign: 1 | -1): BalanceState {
   const m = { ...s.balancesByMethod };
@@ -70,6 +74,7 @@ export function HomeContent() {
   const topBarRef = useRef<HTMLDivElement>(null);
   const avatar = useAvatar();
   const { setFocusMode } = useFocusMode();
+  const { session } = useAuth();
 
   useEffect(() => {
     setFocusMode(Boolean(selectedCat));
@@ -80,8 +85,37 @@ export function HomeContent() {
   useEffect(() => {
     const s = loadState();
     if (!s.onboardingComplete) { navigate({ to: "/onboarding" }); return; }
+    const migrationKey = `${CATEGORY_MIGRATION_FLAG}:${session?.user.id ?? "local"}`;
+    if (localStorage.getItem(migrationKey) !== "true") {
+      const { state: migratedState, stats } = migrateCategoriesToV2(s);
+      if (stats.transactionsReassigned > 0) {
+        console.log(
+          `[Balance] Category migration reassigned ${stats.transactionsReassigned} of ${stats.transactionsScanned} transactions`,
+        );
+      }
+      if (session?.user.id) {
+        migrateCloudTransactionCategories(session.user.id, migratedState.categorizationOverrides)
+          .then((cloudStats) => {
+            if (cloudStats.transactionsReassigned > 0) {
+              console.log(
+                `[Balance] Cloud category migration reassigned ${cloudStats.transactionsReassigned} of ${cloudStats.transactionsScanned} transactions`,
+              );
+            }
+            localStorage.setItem(migrationKey, "true");
+            setState(migratedState); setHydrated(true);
+          })
+          .catch((error) => {
+            console.error("Cloud category migration failed", error);
+            setState(migratedState); setHydrated(true);
+          });
+      } else {
+        localStorage.setItem(migrationKey, "true");
+        setState(migratedState); setHydrated(true);
+      }
+      return;
+    }
     setState(s); setHydrated(true);
-  }, [navigate]);
+  }, [navigate, session?.user.id]);
   useEffect(() => { if (hydrated) saveState(state); }, [state, hydrated]);
 
   const loopsRan = useRef(false);

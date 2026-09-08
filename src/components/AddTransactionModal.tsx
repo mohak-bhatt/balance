@@ -225,7 +225,6 @@ export function AddTransactionModal({
             onClick={onClose}
           />
           <motion.div
-            layoutId="fab"
             className="fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[85vh] w-full max-w-md overflow-hidden overflow-x-hidden overflow-y-auto rounded-t-[28px] border-t border-white/10 bg-black"
             style={{ top: SHEET_TOP_PX, bottom: 0 }}
             initial={{ y: "100%", opacity: 0 }}
@@ -255,7 +254,7 @@ export function AddTransactionModal({
             </button>
 
             <div className="relative h-[calc(100%-1.25rem)] w-full">
-              <AnimatePresence initial={false} mode="popLayout">
+              <AnimatePresence initial={false}>
                 {step === 1 && (
                   <motion.div
                     key="step1"
@@ -305,13 +304,11 @@ export function AddTransactionModal({
                     </div>
 
                     {noteOpen && (
-                      <motion.textarea
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
+                      <textarea
                         value={note}
                         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNote(e.target.value)}
                         placeholder="Optional notes…"
-                        className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-transparent p-3 text-sm outline-none placeholder:text-muted-foreground/40"
+                        className="mt-2 h-[3.75rem] w-full resize-none rounded-2xl border border-white/10 bg-transparent p-3 text-sm outline-none placeholder:text-muted-foreground/40"
                         rows={2}
                       />
                     )}
@@ -319,7 +316,7 @@ export function AddTransactionModal({
                     <div className="flex-1" />
 
                     <div
-                      className="pb-5 transition-[padding] duration-150"
+                      className="pb-5"
                       style={{ paddingBottom: kb ? kb + 12 : 20 }}
                     >
                       <YellowArrowButton onClick={next} disabled={!canAdvance} />
@@ -353,7 +350,7 @@ export function AddTransactionModal({
                     />
                     <div className="flex-1" />
                     <div
-                      className="pb-5 transition-[padding] duration-150"
+                      className="pb-5"
                       style={{ paddingBottom: kb ? kb + 12 : 20 }}
                     >
                       <YellowArrowButton onClick={next} disabled={!canAdvance} />
@@ -514,34 +511,30 @@ export function AddTransactionModal({
                     )}
 
                     {/* Amount display */}
-                    <div className="mt-4 flex items-baseline justify-center gap-1.5">
+                    <div className="mt-4 flex min-h-[4.5rem] items-baseline justify-center gap-1.5">
                       <span
                         className="font-mono-display text-3xl"
                         style={{ color: accent }}
                       >{sign}</span>
                       <span className="font-mono-display text-3xl text-muted-foreground">₹</span>
-                      <motion.span
-                        key={amount || "0"}
-                        initial={{ scale: 0.85, opacity: 0, y: 8 }}
-                        animate={{ scale: 1, opacity: 1, y: 0 }}
-                        transition={{ type: "spring", stiffness: 320, damping: 16 }}
-                        className="font-mono-display text-6xl font-light leading-none"
-                      >
+                      <span className="w-[8ch] min-w-[8ch] text-right font-mono-display text-6xl font-light leading-none tabular-nums">
                         {amount || "0"}
-                      </motion.span>
+                      </span>
                     </div>
 
                     {/* Overdraft warning */}
-                    {overdraft > 0 && (
-                      <p className="mt-2 text-center text-[11px] text-amber-300/90">
-                        Heads up — this will put you {formatCurrency(overdraft)} in the red.
-                      </p>
-                    )}
-                    {overdraft === 0 && alreadyNegative && !isIncome && finalAmount > 0 && (
-                      <p className="mt-2 text-center text-[11px] text-rose-400/90">
-                        You're already {formatCurrency(Math.abs(currentBalance))} in the red — this adds to it.
-                      </p>
-                    )}
+                    <div className="mt-2 flex min-h-[2rem] items-center justify-center text-center text-[11px]">
+                      {overdraft > 0 && (
+                        <p className="text-amber-300/90">
+                          Heads up — this will put you {formatCurrency(overdraft)} in the red.
+                        </p>
+                      )}
+                      {overdraft === 0 && alreadyNegative && !isIncome && finalAmount > 0 && (
+                        <p className="text-rose-400/90">
+                          You're already {formatCurrency(Math.abs(currentBalance))} in the red — this adds to it.
+                        </p>
+                      )}
+                    </div>
 
                     {/* Add-a-note row (singleStep) — moved above payment methods */}
                     {singleStep && (
@@ -556,13 +549,11 @@ export function AddTransactionModal({
                           Add a note
                         </button>
                         {noteOpen && (
-                          <motion.textarea
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
+                          <textarea
                             value={note}
                             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNote(e.target.value)}
                             placeholder="Optional notes…"
-                            className="w-full resize-none rounded-2xl border border-white/10 bg-transparent p-3 text-sm outline-none placeholder:text-muted-foreground/40"
+                            className="h-[3.75rem] w-full resize-none rounded-2xl border border-white/10 bg-transparent p-3 text-sm outline-none placeholder:text-muted-foreground/40"
                             rows={2}
                           />
                         )}
@@ -612,7 +603,7 @@ export function AddTransactionModal({
                     </div>
 
                     <div
-                      className="mt-4 transition-[padding] duration-150"
+                      className="mt-4"
                       style={{ paddingBottom: kb ? kb : 0 }}
                     >
                       <motion.button
@@ -635,7 +626,6 @@ export function AddTransactionModal({
       )}
     </AnimatePresence>
   );
-
   if (typeof document === "undefined") return null;
   return createPortal(node, document.body);
 }

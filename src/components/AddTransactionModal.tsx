@@ -49,6 +49,12 @@ const DEFAULT_SHEET_TOP_PX = 96;
 
 type Mode = "normal" | "lend" | "items";
 
+function getStartingStep(editing: Transaction | null | undefined, prefill: Props["prefill"]): 1 | 2 | 3 {
+  if (editing) return editing.lentTo ? 3 : 2;
+  const requestedStep = prefill?.step;
+  return requestedStep === 2 || requestedStep === 3 ? requestedStep : 1;
+}
+
 export function AddTransactionModal({
   open, onClose, onSave, direction, editing, prefill, currentBalance,
   overrides, onLearnCategory, sheetTopPx,
@@ -56,7 +62,13 @@ export function AddTransactionModal({
   useOverlayState(open);
   const SHEET_TOP_PX = Math.max(88, sheetTopPx ?? DEFAULT_SHEET_TOP_PX);
   const isIncome = direction === "in";
-  const [step, setStep] = useState(1);
+  const requestedStep = getStartingStep(editing, prefill);
+  const [step, setStep] = useState<1 | 2 | 3>(() => requestedStep);
+  const openInstanceRef = useRef(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const lentToInputRef = useRef<HTMLInputElement>(null);
+  const editingTitleInputRef = useRef<HTMLInputElement>(null);
+  const editingNoteTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<Mode>("normal");
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
@@ -81,6 +93,9 @@ export function AddTransactionModal({
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
 
+  // Keep skipped steps from mounting during the open-state reset.
+  const currentStep = open && !openInstanceRef.current ? requestedStep : step;
+
   const kb = useKeyboardOffset();
   useBodyScrollLock(open);
 
@@ -88,6 +103,7 @@ export function AddTransactionModal({
   // Reset on open/close
   useEffect(() => {
     if (!open) {
+      openInstanceRef.current = false;
       setStep(1); setMode("normal"); setTitle(""); setNote(""); setNoteOpen(false);
       setLentTo("");
       const initialCat = isIncome ? PICKABLE_INCOME_CATEGORIES[0] : PICKABLE_EXPENSE_CATEGORIES[0];
@@ -97,6 +113,8 @@ export function AddTransactionModal({
       setEditingTitle(false); setEditingNote(false);
       return;
     }
+    openInstanceRef.current = true;
+    setStep(requestedStep);
     if (editing) {
       setTitle(editing.title);
       setNote(editing.note ?? "");
@@ -119,6 +137,30 @@ export function AddTransactionModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const input = currentStep === 1
+      ? titleInputRef.current
+      : currentStep === 2 && mode === "lend"
+        ? lentToInputRef.current
+        : null;
+    if (!input) return;
+    const focusTimer = window.setTimeout(() => input.focus(), 350);
+    return () => window.clearTimeout(focusTimer);
+  }, [open, currentStep, mode]);
+
+  useEffect(() => {
+    if (!open || !editingTitle) return;
+    const focusTimer = window.setTimeout(() => editingTitleInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(focusTimer);
+  }, [open, editingTitle]);
+
+  useEffect(() => {
+    if (!open || !editingNote) return;
+    const focusTimer = window.setTimeout(() => editingNoteTextareaRef.current?.focus(), 0);
+    return () => window.clearTimeout(focusTimer);
+  }, [open, editingNote]);
 
   // Auto-category from description
   const matched = useMemo(
@@ -154,8 +196,8 @@ export function AddTransactionModal({
   };
 
   const canAdvance = (() => {
-    if (step === 1) return title.trim().length > 0;
-    if (step === 2 && mode === "lend") return lentTo.trim().length > 0;
+    if (currentStep === 1) return title.trim().length > 0;
+    if (currentStep === 2 && mode === "lend") return lentTo.trim().length > 0;
     return true;
   })();
 
@@ -255,7 +297,7 @@ export function AddTransactionModal({
 
             <div className="relative h-[calc(100%-1.25rem)] w-full">
               <AnimatePresence initial={false}>
-                {step === 1 && (
+                {currentStep === 1 && (
                   <motion.div
                     key="step1"
                     initial={{ x: "-100%", opacity: 0 }}
@@ -271,7 +313,7 @@ export function AddTransactionModal({
                       What's this for?
                     </h2>
                     <input
-                      autoFocus
+                      ref={titleInputRef}
                       value={title}
                       onChange={(e) => { setTitle(e.target.value); setAutoCat(true); }}
                       placeholder={isIncome ? "e.g. Pocket money from mom" : "e.g. Cafeteria samosa"}
@@ -324,7 +366,7 @@ export function AddTransactionModal({
                   </motion.div>
                 )}
 
-                {step === 2 && mode === "lend" && (
+                {currentStep === 2 && mode === "lend" && (
                   <motion.div
                     key="step2-lend"
                     initial={{ x: "100%", opacity: 0 }}
@@ -341,7 +383,7 @@ export function AddTransactionModal({
                     </p>
                     <h2 className="mt-3 text-2xl font-light leading-tight">Who's this for?</h2>
                     <input
-                      autoFocus
+                      ref={lentToInputRef}
                       value={lentTo}
                       onChange={(e) => setLentTo(e.target.value)}
                       placeholder="e.g. Rohan"
@@ -358,7 +400,7 @@ export function AddTransactionModal({
                   </motion.div>
                 )}
 
-                {step === finalStep && (
+                {currentStep === finalStep && (
                   <motion.div
                     key="step-final"
                     initial={{ x: "100%", opacity: 0 }}
@@ -390,7 +432,7 @@ export function AddTransactionModal({
                       <div className="mt-1">
                         {editingTitle ? (
                           <input
-                            autoFocus
+                            ref={editingTitleInputRef}
                             value={title}
                             onChange={(e) => { setTitle(e.target.value); setAutoCat(true); }}
                             onBlur={() => setEditingTitle(false)}
@@ -501,7 +543,7 @@ export function AddTransactionModal({
                     )}
                     {!singleStep && editingNote && (
                       <textarea
-                        autoFocus
+                        ref={editingNoteTextareaRef}
                         value={note}
                         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNote(e.target.value)}
                         onBlur={() => setEditingNote(false)}

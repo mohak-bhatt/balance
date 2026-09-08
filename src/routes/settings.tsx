@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createPortal } from "react-dom";
 import { ChevronLeft, Camera, Pencil, Plus, ArrowDown, ArrowUp, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
@@ -29,6 +30,7 @@ import { showUndo } from "@/lib/undo";
 import { ScrollReveal } from "@/components/ScrollReveal";
 import mackieb from "@/assets/mackie-b.png";
 import { useAuth } from "@/lib/AuthContext";
+import { useOverlayState } from "@/lib/OverlayContext";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Balance" }] }),
@@ -542,6 +544,7 @@ function SettingsPage() {
       <AnimatePresence>
         {customOpen && (
           <CustomThemeSheet
+            open={customOpen}
             theme={theme}
             onClose={() => setCustomOpen(false)}
             onSave={(map) => { const next = { id: "custom" as const, customMap: map }; setTheme(next); saveTheme(next); setCustomOpen(false); }}
@@ -685,15 +688,16 @@ function SettingsPage() {
 }
 
 function CustomThemeSheet({
-  theme, onClose, onSave,
-}: { theme: ThemeState; onClose: () => void; onSave: (map: Record<string, string>) => void }) {
+  open, theme, onClose, onSave,
+}: { open: boolean; theme: ThemeState; onClose: () => void; onSave: (map: Record<string, string>) => void }) {
+  useOverlayState(open);
   const [map, setMap] = useState<Record<string, string>>(() => {
     const base: Record<string, string> = {};
     for (const c of CATEGORIES) base[c.key] = theme.customMap?.[c.key] ?? getCategory(c.key).color;
     return base;
   });
 
-  return (
+  const sheet = (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 grid place-items-end bg-black/40 sm:place-items-center"
@@ -704,55 +708,69 @@ function CustomThemeSheet({
         animate={{ y: 0, scale: 1, opacity: 1 }}
         exit={{ y: 40, scale: 0.96, opacity: 0 }}
         transition={{ type: "spring", stiffness: 400, damping: 32, mass: 0.9 }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 0.5 }}
-        dragMomentum={false}
-        onDragEnd={(event, info) => {
-          if (info.offset.y > 100 || info.velocity.y > 500) {
-            onClose();
-          }
-        }}
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
-        className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-t-3xl border-t p-5 sm:rounded-3xl sm:border"
+        className="flex h-[80vh] max-h-[80vh] min-h-0 w-full max-w-md flex-col overflow-hidden rounded-t-3xl border-t sm:h-auto sm:max-h-[80vh] sm:rounded-3xl sm:border"
         style={{
           background: "rgba(10,10,10,0.97)",
           borderColor: "rgba(255,255,255,0.08)",
           boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 -20px 60px -20px rgba(0,0,0,0.8)",
         }}
       >
-        <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Custom theme</p>
-        <div className="mt-4 space-y-2">
-          {CATEGORIES.filter((c) => c.key !== "lent_out").map((c) => (
-            <label
-              key={c.key}
-              className="flex items-center gap-3 rounded-xl border p-3"
-              style={{
-                background: "rgba(255,255,255,0.03)",
-                borderColor: "rgba(255,255,255,0.06)",
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
-              }}
-            >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10">
-                <Icon name={c.icon} size={15} strokeWidth={1.5} />
-              </span>
-              <span className="flex-1 truncate text-sm">{c.label}</span>
-              <input
-                type="color"
-                value={map[c.key]}
-                onChange={(e) => setMap((m) => ({ ...m, [c.key]: e.target.value }))}
-                className="h-8 w-8 shrink-0 cursor-pointer rounded-full border border-white/15 bg-transparent"
-              />
-            </label>
-          ))}
-        </div>
-        <button
-          onClick={() => onSave(map)}
-          className="mt-6 w-full rounded-xl bg-white py-3 text-sm font-medium text-black"
+        <div
+          className="flex shrink-0 items-center justify-center pb-4 pt-3"
         >
-          Save theme
-        </button>
+          <div className="h-1.5 w-12 rounded-full bg-white/20" />
+        </div>
+        <div className="flex shrink-0 items-start justify-between px-5">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Appearance</p>
+            <h2 className="mt-1 font-mono-display text-xl text-foreground/95">Custom theme</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Choose a color for each category.</p>
+          </div>
+          <button onClick={onClose} className="rounded-full p-2 text-muted-foreground" aria-label="Close custom theme">
+            <X size={18} strokeWidth={1.5} />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5 pt-5 [touch-action:pan-y]">
+          <div className="space-y-2">
+            {CATEGORIES.filter((c) => c.key !== "lent_out").map((c) => (
+              <label
+                key={c.key}
+                className="flex items-center gap-3 rounded-2xl border p-3"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  borderColor: "rgba(255,255,255,0.06)",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
+                }}
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10" style={{ color: map[c.key] }}>
+                  <Icon name={c.icon} size={15} strokeWidth={1.5} />
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm">{c.label}</span>
+                <span className="h-6 w-6 shrink-0 rounded-full border border-white/20" style={{ backgroundColor: map[c.key] }} />
+                <input
+                  type="color"
+                  value={map[c.key]}
+                  aria-label={`${c.label} color`}
+                  onChange={(e) => setMap((m) => ({ ...m, [c.key]: e.target.value }))}
+                  className="h-8 w-8 shrink-0 cursor-pointer rounded-full border border-white/15 bg-transparent"
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="shrink-0 border-t border-white/10 px-5 pb-5 pt-4">
+          <button
+            onClick={() => onSave(map)}
+            className="w-full rounded-xl bg-white py-3 text-sm font-medium text-black"
+          >
+            Save theme
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(sheet, document.body);
 }

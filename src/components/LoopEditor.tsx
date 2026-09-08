@@ -35,7 +35,7 @@ export function LoopEditor({
   open, onClose, loops, onAdd, onUpdate, onDelete,
   mode = "manage", initialEdit = null,
 }: Props) {
-  useOverlayState(open);
+  useOverlayState(open, onClose);
   const themeColor = useCategoryColor();
   useBodyScrollLock(open);
 

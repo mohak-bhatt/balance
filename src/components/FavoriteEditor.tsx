@@ -30,7 +30,7 @@ export function FavoriteEditor({
   open, onClose, favorites, onAdd, onUpdate, onDelete,
   mode = "manage", initialEdit = null,
 }: Props) {
-  useOverlayState(open);
+  useOverlayState(open, onClose);
   const [editingId, setEditingId] = useState<string | null>(null);
   const kb = useKeyboardOffset();
   const [label, setLabel] = useState("");

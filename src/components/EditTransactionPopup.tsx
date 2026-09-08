@@ -29,7 +29,7 @@ const SPRING = { type: "spring" as const, stiffness: 220, damping: 28, mass: 0.9
 const DEFAULT_SHEET_TOP_PX = 96;
 
 export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: Props) {
-  useOverlayState(open && !!tx);
+  useOverlayState(open && !!tx, onClose);
   const SHEET_TOP_PX = Math.max(88, sheetTopPx ?? DEFAULT_SHEET_TOP_PX);
   const [title, setTitle] = useState("");
   const [editingTitle, setEditingTitle] = useState(false);

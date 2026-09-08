@@ -50,7 +50,7 @@ function createCroppedAvatar(imageSrc: string, area: Area): Promise<Blob> {
 
 export function CropImageSheet({ file, onCancel, onComplete }: Props) {
   const open = Boolean(file);
-  useOverlayState(open);
+  useOverlayState(open, onCancel);
   useBodyScrollLock(open);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });

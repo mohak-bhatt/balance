@@ -701,7 +701,7 @@ function SettingsPage() {
 function CustomThemeSheet({
   open, theme, onClose, onSave,
 }: { open: boolean; theme: ThemeState; onClose: () => void; onSave: (map: Record<string, string>) => void }) {
-  useOverlayState(open);
+  useOverlayState(open, onClose);
   const [map, setMap] = useState<Record<string, string>>(() => {
     const base: Record<string, string> = {};
     for (const c of CATEGORIES) base[c.key] = theme.customMap?.[c.key] ?? getCategory(c.key).color;

@@ -59,7 +59,7 @@ export function AddTransactionModal({
   open, onClose, onSave, direction, editing, prefill, currentBalance,
   overrides, onLearnCategory, sheetTopPx,
 }: Props) {
-  useOverlayState(open);
+  useOverlayState(open, onClose);
   const SHEET_TOP_PX = Math.max(88, sheetTopPx ?? DEFAULT_SHEET_TOP_PX);
   const isIncome = direction === "in";
   const requestedStep = getStartingStep(editing, prefill);

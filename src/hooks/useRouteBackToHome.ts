@@ -1,18 +1,26 @@
 import { App } from "@capacitor/app";
 import { useEffect, useRef } from "react";
+import { useOverlayState } from "@/lib/OverlayContext";
 
 export function useRouteBackToHome(navigateToHome: () => void) {
   const navigateRef = useRef(navigateToHome);
+  const { isOverlayOpen } = useOverlayState();
+  const overlayOpenRef = useRef(isOverlayOpen);
 
   useEffect(() => {
     navigateRef.current = navigateToHome;
   }, [navigateToHome]);
 
   useEffect(() => {
+    overlayOpenRef.current = isOverlayOpen;
+  }, [isOverlayOpen]);
+
+  useEffect(() => {
     let disposed = false;
     let nativeHandle: { remove: () => Promise<void> } | undefined;
 
     App.addListener("backButton", () => {
+      if (overlayOpenRef.current) return;
       navigateRef.current();
     }).then((handle) => {
       if (disposed) {

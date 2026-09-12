@@ -79,7 +79,6 @@ export const PAYMENT_METHODS: { key: PaymentMethod; label: string; icon: string 
   { key: "upi", label: "UPI", icon: "Smartphone" },
   { key: "card", label: "Card", icon: "CreditCard" },
   { key: "netbanking", label: "Net Banking", icon: "Globe" },
-  { key: "other", label: "Other", icon: "Wallet" },
 ];
 
 export const DEFAULT_STATE: BalanceState = {

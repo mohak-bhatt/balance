@@ -1,9 +1,10 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Delete, X } from "lucide-react";
+import { Calendar, Delete, X } from "lucide-react";
 import { Icon } from "./Icon";
-import { CategoryPicker } from "./CategoryPicker";
+import { CategoryIconPopup } from "./CategoryIconPopup";
+import { NoteField } from "./NoteField";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useKeyboardOffset } from "@/hooks/useKeyboardOffset";
 import { useOverlayState } from "@/lib/OverlayContext";
@@ -15,6 +16,7 @@ import {
   type PaymentMethod,
   type Transaction,
 } from "@/lib/ledger";
+import { useCategoryColor } from "@/lib/themes";
 import { haptic } from "@/lib/haptics";
 
 interface Props {
@@ -25,8 +27,207 @@ interface Props {
   sheetTopPx?: number;
 }
 
-const SPRING = { type: "spring" as const, stiffness: 220, damping: 28, mass: 0.9 };
 const DEFAULT_SHEET_TOP_PX = 96;
+const ROW_H = 40; // px per wheel row
+const VISIBLE_ROWS = 5; // odd, so there's a clear center row
+
+/** One iOS-style scrolling wheel column. Snaps to the nearest row and reports its index. */
+function WheelColumn({
+  items, index, onChange, align = "center", widthClass = "w-full",
+}: {
+  items: string[];
+  index: number;
+  onChange: (i: number) => void;
+  align?: "center" | "left";
+  widthClass?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const padY = (ROW_H * (VISIBLE_ROWS - 1)) / 2;
+  const lastReported = useRef(index);
+  const scrollTimer = useRef<number | null>(null);
+
+  // Keep the wheel's scroll position in sync when `index` changes externally.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const target = index * ROW_H;
+    if (Math.abs(el.scrollTop - target) > 1) el.scrollTop = target;
+  }, [index]);
+
+  const handleScroll = () => {
+    const el = ref.current;
+    if (!el) return;
+    if (scrollTimer.current) window.clearTimeout(scrollTimer.current);
+    scrollTimer.current = window.setTimeout(() => {
+      const raw = el.scrollTop / ROW_H;
+      const snapped = Math.max(0, Math.min(items.length - 1, Math.round(raw)));
+      el.scrollTo({ top: snapped * ROW_H, behavior: "smooth" });
+      if (snapped !== lastReported.current) {
+        lastReported.current = snapped;
+        haptic("tick");
+        onChange(snapped);
+      }
+    }, 80);
+  };
+
+  return (
+    <>
+      <style>{`.balance-wheel-col::-webkit-scrollbar { display: none; }`}</style>
+      <div
+        ref={ref}
+        onScroll={handleScroll}
+        className={`balance-wheel-col relative overflow-y-scroll ${widthClass}`}
+        style={{
+          scrollSnapType: "y mandatory",
+          height: ROW_H * VISIBLE_ROWS,
+          paddingTop: padY,
+          paddingBottom: padY,
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
+        }}
+      >
+        {items.map((label, i) => (
+          <div
+            key={i}
+            className={`flex items-center font-mono-display text-lg tabular-nums transition-opacity ${
+              i === index ? "text-foreground opacity-100" : "text-muted-foreground opacity-50"
+            } ${align === "center" ? "justify-center" : "justify-start pl-4"}`}
+            style={{ height: ROW_H, scrollSnapAlign: "center" }}
+          >
+            {label}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Builds a rolling window of dates (past + a little future) for the day wheel. */
+function buildDayOptions(centerOn: Date): { label: string; date: Date }[] {
+  const days: { label: string; date: Date }[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let offset = -365; offset <= 30; offset++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + offset);
+    let label: string;
+    if (offset === 0) label = "Today";
+    else if (offset === -1) label = "Yesterday";
+    else if (offset === 1) label = "Tomorrow";
+    else label = `${d.getDate()} ${MONTH_LABELS[d.getMonth()]} ${d.getFullYear()}`;
+    days.push({ label, date: d });
+  }
+  void centerOn;
+  return days;
+}
+
+/** Centered popup for editing date & time with iOS-style scrolling wheels. */
+function EditTimePopup({
+  open, value, onChange, onClose,
+}: { open: boolean; value: string; onChange: (iso: string) => void; onClose: () => void }) {
+  useBodyScrollLock(open);
+  const initial = useMemo(() => new Date(value), [value]);
+  const dayOptions = useMemo(() => buildDayOptions(initial), [initial]);
+
+  const [dayIdx, setDayIdx] = useState(0);
+  const [hour12, setHour12] = useState(12);
+  const [minute, setMinute] = useState(0);
+  const [ampmIdx, setAmpmIdx] = useState(0); // 0 = AM, 1 = PM
+
+  useEffect(() => {
+    if (!open) return;
+    const d = new Date(value);
+    const dayStart = new Date(d);
+    dayStart.setHours(0, 0, 0, 0);
+    const found = dayOptions.findIndex((o) => o.date.getTime() === dayStart.getTime());
+    setDayIdx(found >= 0 ? found : dayOptions.findIndex((o) => o.label === "Today"));
+    const h = d.getHours();
+    setHour12(h % 12 === 0 ? 12 : h % 12);
+    setMinute(d.getMinutes());
+    setAmpmIdx(h >= 12 ? 1 : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, value]);
+
+  const hourLabels = Array.from({ length: 12 }, (_, i) => String(i + 1));
+  const minuteLabels = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
+  const ampmLabels = ["AM", "PM"];
+
+  const handleDone = () => {
+    const base = new Date(dayOptions[dayIdx]?.date ?? new Date());
+    let h24 = hour12 % 12;
+    if (ampmIdx === 1) h24 += 12;
+    base.setHours(h24, minute, 0, 0);
+    onChange(base.toISOString());
+    onClose();
+  };
+
+  const node = (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[140] bg-black/70 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.92 }}
+            transition={{ type: "spring", stiffness: 320, damping: 26 }}
+            className="fixed left-1/2 top-1/2 z-[141] w-[90vw] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-3xl border p-4"
+            style={{
+              background: "rgba(15, 15, 15, 0.85)",
+              backdropFilter: "blur(16px) saturate(150%)",
+              WebkitBackdropFilter: "blur(16px) saturate(150%)",
+              borderColor: "rgba(255,255,255,0.08)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 20px 60px -10px rgba(0,0,0,0.9)",
+            }}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-mono-display text-lg text-foreground/95">EDIT TIME</h3>
+              <button onClick={onClose} className="rounded-full p-1.5 text-muted-foreground hover:bg-white/5">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Wheel picker with a highlighted center row, iOS-style */}
+            <div className="relative">
+              <div
+                className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-xl border-y border-white/15 bg-white/[0.04]"
+                style={{ height: ROW_H }}
+              />
+              <div className="flex items-stretch gap-1">
+                <WheelColumn
+                  items={dayOptions.map((o) => o.label)}
+                  index={dayIdx}
+                  onChange={setDayIdx}
+                  align="left"
+                  widthClass="flex-[1.6]"
+                />
+                <WheelColumn items={hourLabels} index={hour12 - 1} onChange={(i) => setHour12(i + 1)} widthClass="flex-1" />
+                <WheelColumn items={minuteLabels} index={minute} onChange={setMinute} widthClass="flex-1" />
+                <WheelColumn items={ampmLabels} index={ampmIdx} onChange={setAmpmIdx} widthClass="flex-[0.8]" />
+              </div>
+            </div>
+
+            <button
+              onClick={handleDone}
+              className="editor-field mt-4 flex h-14 w-full items-center justify-center rounded-full text-[11px] uppercase tracking-[0.22em] text-foreground"
+            >
+              Done
+            </button>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(node, document.body);
+}
 
 export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: Props) {
   useOverlayState(open && !!tx, onClose);
@@ -35,14 +236,17 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
   const [editingTitle, setEditingTitle] = useState(false);
   const [amount, setAmount] = useState("0");
   const [note, setNote] = useState("");
-  const [editingNote, setEditingNote] = useState(false);
   const [pm, setPm] = useState<PaymentMethod>("cash");
   const [lentTo, setLentTo] = useState("");
   const [editingLentTo, setEditingLentTo] = useState(false);
   const [isLend, setIsLend] = useState(false);
   const [category, setCategory] = useState<string>("misc");
   const [icon, setIcon] = useState<string>("Sparkles");
+  const [timestamp, setTimestamp] = useState<string>(new Date().toISOString());
+  const [catPopupOpen, setCatPopupOpen] = useState(false);
+  const [timePopupOpen, setTimePopupOpen] = useState(false);
   const kb = useKeyboardOffset();
+  const themeColor = useCategoryColor();
 
   useEffect(() => {
     if (!open || !tx) return;
@@ -54,9 +258,11 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
     setIsLend(!!tx.lentTo);
     setCategory(tx.category);
     setIcon(tx.icon);
+    setTimestamp(tx.timestamp);
     setEditingTitle(false);
-    setEditingNote(false);
     setEditingLentTo(false);
+    setCatPopupOpen(false);
+    setTimePopupOpen(false);
   }, [open, tx]);
 
   useBodyScrollLock(open);
@@ -96,6 +302,7 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
       category: isLend ? LENT_OUT_KEY : category,
       icon: isLend ? "Handshake" : icon,
       repaid: isLend ? (tx.repaid ?? false) : null,
+      timestamp,
     });
     haptic("success");
     onClose();
@@ -104,6 +311,7 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
   const accent = tx.direction === "in" ? "#10B981" : "#F87171";
   const sign = tx.direction === "in" ? "+" : "−";
   const catPool = tx.direction === "in" ? PICKABLE_INCOME_CATEGORIES : PICKABLE_EXPENSE_CATEGORIES;
+  const selectedCategoryColor = themeColor(category);
 
   const node = (
     <AnimatePresence>
@@ -116,8 +324,8 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
             onClick={onClose}
           />
           <motion.div
-            className="fixed inset-x-0 z-[130] mx-auto w-full max-w-md overflow-hidden overflow-x-hidden rounded-t-[28px] border-t border-white/10 bg-black"
-            style={{ top: SHEET_TOP_PX, bottom: 0 }}
+            className="fixed inset-x-0 z-[130] mx-auto w-full max-w-md overflow-hidden overflow-x-hidden rounded-t-[28px] border-t border-white/10"
+            style={{ top: SHEET_TOP_PX, bottom: 0, background: "#000000" }}
             initial={{ y: "100%", opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: "100%", opacity: 0 }}
@@ -137,85 +345,77 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
             </div>
             <button
               onClick={onClose}
-              className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-white/[0.06] text-foreground/90"
+              className="absolute right-4 top-3 z-10 rounded-full p-2 text-muted-foreground"
               aria-label="Close"
             >
-              <X size={18} strokeWidth={1.6} />
+              <X size={18} strokeWidth={1.5} />
             </button>
 
-            <div className="editor-card mx-auto flex h-[calc(100%-1.25rem)] max-w-md flex-col rounded-t-2xl px-6 pt-4 pb-5">
+            <div className="mx-auto flex h-[calc(100%-1.25rem)] max-w-md flex-col bg-black px-6 pt-14 pb-5">
+              {/* Header: eyebrow + title, with category + edit-time icons spanning both lines */}
               <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
                 Edit · {isLend ? "Lend" : (tx.direction === "in" ? "Income" : "Expense")}
               </p>
+              <div className="mt-0.5 flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  {editingTitle ? (
+                    <input
+                      autoFocus
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      onBlur={() => setEditingTitle(false)}
+                      onKeyDown={(e) => { if (e.key === "Enter") setEditingTitle(false); }}
+                      className="w-full bg-transparent text-2xl font-semibold outline-none border-b border-white/20"
+                    />
+                  ) : (
+                    <button
+                      onClick={() => setEditingTitle(true)}
+                      className="block w-full truncate text-left text-2xl font-semibold"
+                    >
+                      {isLend ? `Lent to ${lentTo || "—"}` : (title || "Untitled")}
+                    </button>
+                  )}
+                </div>
 
-              {/* Editable title */}
-              <div className="mt-1">
-                {editingTitle ? (
-                  <input
-                    autoFocus
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    onBlur={() => setEditingTitle(false)}
-                    onKeyDown={(e) => { if (e.key === "Enter") setEditingTitle(false); }}
-                    className="editor-field w-full text-xl font-medium"
-                  />
-                ) : (
-                  <button
-                    onClick={() => setEditingTitle(true)}
-                    className="block w-full truncate text-left text-xl font-medium"
-                  >
-                    {isLend ? `Lent to ${lentTo || "—"}` : (title || "Untitled")}
-                  </button>
-                )}
-              </div>
-
-              {/* Category chip — opens picker */}
-              {!isLend && (
-                <>
-                  <CategoryPicker
-                    categories={catPool}
-                    selectedKey={category}
-                    onSelect={(selected) => {
-                      setCategory(selected.key); setIcon(selected.icon); haptic("tick");
-                    }}
-                  />
-                </>
-              )}
-
-              {/* Editable note */}
-              <div className="mt-3">
-                {editingNote ? (
-                  <textarea
-                    autoFocus
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    onBlur={() => setEditingNote(false)}
-                    rows={2}
-                    className="editor-field w-full resize-none text-xs"
-                  />
-                ) : (
-                  <button
-                    onClick={() => setEditingNote(true)}
-                    className="editor-field block w-full overflow-x-auto whitespace-pre text-left text-xs text-muted-foreground"
-                  >
-                    {note || <span className="text-muted-foreground/60">+ Add note</span>}
-                  </button>
-                )}
-              </div>
-
-              {/* Amount display */}
-              <div className="mt-3 flex items-baseline justify-center gap-1.5">
-                <span className="font-mono-display text-3xl" style={{ color: accent }}>{sign}</span>
-                <span className="font-mono-display text-3xl text-muted-foreground">₹</span>
-                <motion.span
-                  key={amount || "0"}
-                  initial={{ scale: 0.9, opacity: 0, y: 6 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  transition={{ type: "spring", stiffness: 320, damping: 16 }}
-                  className="font-mono-display text-5xl font-light leading-none"
+                <button
+                  onClick={() => setTimePopupOpen(true)}
+                  className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-foreground/80"
+                  aria-label="Change date & time"
                 >
-                  {amount || "0"}
-                </motion.span>
+                  <Calendar size={20} strokeWidth={1.6} />
+                </button>
+
+                {!isLend && (
+                  <button
+                    onClick={() => setCatPopupOpen(true)}
+                    className="grid h-14 w-14 shrink-0 place-items-center rounded-full border"
+                    style={{
+                      borderColor: `${selectedCategoryColor}88`,
+                      background: `color-mix(in oklab, ${selectedCategoryColor} 16%, transparent)`,
+                      color: selectedCategoryColor,
+                    }}
+                    aria-label="Change category"
+                  >
+                    <Icon name={icon} size={22} strokeWidth={1.6} />
+                  </button>
+                )}
+              </div>
+
+              {/* Amount display — centered as one unified block */}
+              <div className="mt-4 flex items-baseline justify-center">
+                <span className="inline-flex items-baseline gap-1.5">
+                  <span className="font-mono-display text-3xl" style={{ color: accent }}>{sign}</span>
+                  <span className="font-mono-display text-3xl text-muted-foreground">₹</span>
+                  <motion.span
+                    key={amount || "0"}
+                    initial={{ scale: 0.9, opacity: 0, y: 6 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    transition={{ type: "spring", stiffness: 320, damping: 16 }}
+                    className="font-mono-display text-5xl font-light leading-none"
+                  >
+                    {amount || "0"}
+                  </motion.span>
+                </span>
               </div>
 
               {/* Lend controls */}
@@ -261,23 +461,28 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
                 </div>
               )}
 
-              {/* Payment method chips */}
-              <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+              {/* Payment method chips — exactly 5 equal columns, always one line */}
+              <div className="mt-3 flex gap-1.5">
                 {PAYMENT_METHODS.map((m) => {
                   const sel = pm === m.key;
                   return (
                     <button
                       key={m.key}
                       onClick={() => { setPm(m.key); haptic("tick"); }}
-                      className={`flex min-h-11 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] ${
+                      className={`flex-1 flex min-h-9 items-center justify-center gap-1 rounded-full border px-2 py-1.5 text-center text-[9px] leading-tight ${
                         sel ? "border-white/40 text-foreground" : "border-white/10 text-muted-foreground"
                       }`}
                     >
-                      <Icon name={m.icon} size={11} strokeWidth={1.6} />
-                      {m.label}
+                      <Icon name={m.icon} size={10} strokeWidth={1.6} className="shrink-0" />
+                      <span className="leading-tight">{m.label}</span>
                     </button>
                   );
                 })}
+              </div>
+
+              {/* Add-a-note — below payment methods, above keypad */}
+              <div className="mt-3">
+                <NoteField value={note} onChange={setNote} />
               </div>
 
               {/* Custom keypad */}
@@ -318,6 +523,24 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
               </div>
             </div>
           </motion.div>
+
+          <CategoryIconPopup
+            open={catPopupOpen}
+            categories={catPool}
+            selectedKey={category}
+            colorFor={themeColor}
+            onSelect={(selected) => {
+              setCategory(selected.key); setIcon(selected.icon); haptic("tick");
+            }}
+            onClose={() => setCatPopupOpen(false)}
+          />
+
+          <EditTimePopup
+            open={timePopupOpen}
+            value={timestamp}
+            onChange={setTimestamp}
+            onClose={() => setTimePopupOpen(false)}
+          />
         </>
       )}
     </AnimatePresence>

@@ -2,10 +2,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  ArrowLeft, Delete, X, Check, FileText, Handshake,
+  ArrowLeft, Delete, X, Check, FileText, Handshake, ChevronRight,
 } from "lucide-react";
 import { Icon } from "./Icon";
-import { CategoryPicker } from "./CategoryPicker";
+import { GROUPS, groupFor } from "./CategoryPicker";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useKeyboardOffset } from "@/hooks/useKeyboardOffset";
 import { useOverlayState } from "@/lib/OverlayContext";
@@ -16,11 +16,13 @@ import {
   PICKABLE_INCOME_CATEGORIES,
   formatCurrency,
   matchCategory,
+  type CategoryDef,
   type Direction,
   type LineItem,
   type PaymentMethod,
   type Transaction,
 } from "@/lib/ledger";
+import { useCategoryColor } from "@/lib/themes";
 import { haptic } from "@/lib/haptics";
 import { YellowArrowButton } from "./YellowArrow";
 
@@ -55,6 +57,101 @@ function getStartingStep(editing: Transaction | null | undefined, prefill: Props
   return requestedStep === 2 || requestedStep === 3 ? requestedStep : 1;
 }
 
+/** Bottom-sheet popup for picking a category by icon, grouped like the icon picker. */
+function CategoryIconPopup({
+  open, categories, selectedKey, colorFor, onSelect, onClose,
+}: {
+  open: boolean;
+  categories: CategoryDef[];
+  selectedKey: string;
+  colorFor: (key: string) => string;
+  onSelect: (category: CategoryDef) => void;
+  onClose: () => void;
+}) {
+  useBodyScrollLock(open);
+  const groups = useMemo(() => {
+    const grouped = new Map<string, CategoryDef[]>();
+    for (const category of categories) {
+      const group = groupFor(category);
+      if (!grouped.has(group)) grouped.set(group, []);
+      grouped.get(group)!.push(category);
+    }
+    return Array.from(grouped.entries());
+  }, [categories]);
+
+  const node = (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 220, damping: 26 }}
+            className="fixed inset-x-0 bottom-0 z-[61] max-h-[80vh] overflow-x-hidden overflow-y-auto rounded-t-[28px] border-t border-white/10 p-4"
+            style={{
+              background: "rgba(15, 15, 15, 0.65)",
+              backdropFilter: "blur(10px) saturate(150%)",
+              WebkitBackdropFilter: "blur(10px) saturate(150%)",
+              borderColor: "rgba(255,255,255,0.08)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 -20px 60px -20px rgba(0,0,0,0.8)",
+            }}
+          >
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/15" />
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="font-mono-display text-xl text-foreground/95">CATEGORY</h3>
+              <button onClick={onClose} className="rounded-full p-1.5 text-muted-foreground hover:bg-white/5">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="max-h-[60vh] space-y-4 overflow-y-auto pb-2">
+              {groups.map(([group, groupCategories]) => (
+                <section key={group}>
+                  <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    {group}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {groupCategories.map((category) => {
+                      const color = colorFor(category.key);
+                      const isSelected = category.key === selectedKey;
+                      return (
+                        <button
+                          key={category.key}
+                          type="button"
+                          onClick={() => { onSelect(category); onClose(); }}
+                          className="flex h-12 items-center gap-2 rounded-2xl border px-2.5 text-left text-foreground/85 transition-colors active:scale-[0.98]"
+                          style={isSelected ? {
+                            borderColor: color,
+                            background: `color-mix(in oklab, ${color} 18%, transparent)`,
+                          } : {
+                            borderColor: "rgba(255,255,255,0.09)",
+                            background: "rgba(255,255,255,0.035)",
+                          }}
+                        >
+                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/15 bg-black/10" style={{ color }}>
+                            <Icon name={category.icon} size={15} strokeWidth={1.55} />
+                          </span>
+                          <span className="min-w-0 truncate text-xs font-medium text-foreground/85">{category.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(node, document.body);
+}
+
 export function AddTransactionModal({
   open, onClose, onSave, direction, editing, prefill, currentBalance,
   overrides, onLearnCategory, sheetTopPx,
@@ -86,6 +183,8 @@ export function AddTransactionModal({
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [singleStep, setSingleStep] = useState(false);
+  const [catPopupOpen, setCatPopupOpen] = useState(false);
+  const themeColor = useCategoryColor();
 
   // Step-2 inline editing
   const [editingTitle, setEditingTitle] = useState(false);
@@ -109,6 +208,7 @@ export function AddTransactionModal({
       setAutoCat(true); setAmount(""); setPaymentMethod("cash");
       setSingleStep(false);
       setEditingTitle(false); setEditingNote(false);
+      setCatPopupOpen(false);
       return;
     }
     openInstanceRef.current = true;
@@ -246,6 +346,7 @@ export function AddTransactionModal({
   const accent = isIncome ? "#10B981" : "#F87171";
   const sign = isIncome ? "+" : "−";
   const catPool = isIncome ? PICKABLE_INCOME_CATEGORIES : PICKABLE_EXPENSE_CATEGORIES;
+  const selectedCategoryColor = themeColor(category);
 
   const node = (
     <AnimatePresence>
@@ -284,6 +385,15 @@ export function AddTransactionModal({
             >
               <X size={18} strokeWidth={1.5} />
             </button>
+            {((currentStep === 2 && mode === "lend") || (currentStep === finalStep && !singleStep)) && (
+              <button
+                onClick={back}
+                className="absolute left-4 top-3 z-10 rounded-full p-2 text-muted-foreground"
+                aria-label="Back"
+              >
+                <ArrowLeft size={20} strokeWidth={1.5} />
+              </button>
+            )}
 
             <div className="relative h-[calc(100%-1.25rem)] w-full">
               <AnimatePresence initial={false}>
@@ -363,12 +473,9 @@ export function AddTransactionModal({
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: "100%", opacity: 0 }}
                     transition={SPRING}
-                    className="absolute inset-0 mx-auto flex max-w-md flex-col px-6 pt-6"
+                    className="absolute inset-0 mx-auto flex max-w-md flex-col px-6 pt-14"
                   >
-                    <button onClick={back} className="self-start rounded-full p-2 text-muted-foreground" aria-label="Back">
-                      <ArrowLeft size={20} strokeWidth={1.5} />
-                    </button>
-                    <p className="mt-2 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
                       Step 2 of 3 · Lend
                     </p>
                     <h2 className="mt-3 text-2xl font-light leading-tight">Who's this for?</h2>
@@ -397,60 +504,66 @@ export function AddTransactionModal({
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: "100%", opacity: 0 }}
                     transition={SPRING}
-                    className="absolute inset-0 mx-auto flex max-w-md flex-col px-6 pt-5 pb-5"
+                    className="absolute inset-0 mx-auto flex max-w-md flex-col px-6 pt-14 pb-5"
                   >
-                    {!singleStep ? (
-                      <button onClick={back} className="self-start rounded-full p-2 text-muted-foreground" aria-label="Back">
-                        <ArrowLeft size={20} strokeWidth={1.5} />
-                      </button>
-                    ) : (
-                      <div className="h-9" />
-                    )}
 
-                    {singleStep ? (
-                      <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-                        Add money · {PAYMENT_METHODS.find((m) => m.key === paymentMethod)?.label}
-                      </p>
-                    ) : (
-                      <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-                        {mode === "lend" ? "Lend" : (isIncome ? "Income" : "Expense")}
-                      </p>
-                    )}
-
-                    {/* Editable title */}
-                    {!singleStep && (
-                      <div className="mt-1">
-                        {editingTitle ? (
-                          <input
-                            ref={editingTitleInputRef}
-                            value={title}
-                            onChange={(e) => { setTitle(e.target.value); setAutoCat(true); }}
-                            onBlur={() => setEditingTitle(false)}
-                            onKeyDown={(e) => { if (e.key === "Enter") setEditingTitle(false); }}
-                            className="w-full bg-transparent text-xl font-medium outline-none border-b border-white/20"
-                          />
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        {singleStep ? (
+                          <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                            Add money · {PAYMENT_METHODS.find((m) => m.key === paymentMethod)?.label}
+                          </p>
                         ) : (
-                          <button
-                            onClick={() => setEditingTitle(true)}
-                            className="block w-full truncate text-left text-xl font-medium"
-                          >
-                            {mode === "lend" ? `Lent to ${lentTo}` : (title || "Untitled")}
-                          </button>
+                          <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                            {mode === "lend" ? "Lend" : (isIncome ? "Income" : "Expense")}
+                          </p>
+                        )}
+
+                        {/* Title (mode !== lend, both singleStep and normal) */}
+                        {mode !== "lend" && (
+                          editingTitle ? (
+                            <input
+                              ref={editingTitleInputRef}
+                              value={title}
+                              onChange={(e) => { setTitle(e.target.value); setAutoCat(true); }}
+                              onBlur={() => setEditingTitle(false)}
+                              onKeyDown={(e) => { if (e.key === "Enter") setEditingTitle(false); }}
+                              className="mt-0.5 w-full bg-transparent text-2xl font-semibold outline-none border-b border-white/20"
+                            />
+                          ) : (
+                            <button
+                              onClick={() => setEditingTitle(true)}
+                              className="mt-0.5 block w-full truncate text-left text-2xl font-semibold"
+                            >
+                              {title || "Untitled"}
+                            </button>
+                          )
+                        )}
+
+                        {/* Lend title (no category) */}
+                        {mode === "lend" && !singleStep && (
+                          <p className="mt-0.5 block w-full truncate text-left text-2xl font-semibold">
+                            {`Lent to ${lentTo}`}
+                          </p>
                         )}
                       </div>
-                    )}
 
-                    {/* category chip */}
-                    {mode !== "lend" && !singleStep && (
-                      <CategoryPicker
-                        categories={catPool}
-                        selectedKey={category}
-                        onSelect={(selected) => {
-                          setAutoCat(false); setCategory(selected.key); setIcon(selected.icon);
-                        }}
-                        compact
-                      />
-                    )}
+                      {mode !== "lend" && (
+                        <button
+                          onClick={() => setCatPopupOpen(true)}
+                          className="grid h-14 w-14 shrink-0 place-items-center rounded-full border"
+                          style={{
+                            borderColor: `${selectedCategoryColor}88`,
+                            background: `color-mix(in oklab, ${selectedCategoryColor} 16%, transparent)`,
+                            color: selectedCategoryColor,
+                          }}
+                          aria-label="Change category"
+                        >
+                          <Icon name={icon} size={22} strokeWidth={1.6} />
+                        </button>
+                      )}
+                    </div>
+
 
                     {/* Editable note (preserves line breaks, no wrap) */}
                     {!singleStep && note && !editingNote && (
@@ -472,15 +585,17 @@ export function AddTransactionModal({
                       />
                     )}
 
-                    {/* Amount display */}
-                    <div className="mt-4 flex min-h-[4.5rem] items-baseline justify-center gap-1.5 text-center">
-                      <span
-                        className="font-mono-display text-3xl"
-                        style={{ color: accent }}
-                      >{sign}</span>
-                      <span className="font-mono-display text-3xl text-muted-foreground">₹</span>
-                      <span className="w-[6ch] min-w-[6ch] text-center font-mono-display text-6xl font-light leading-none tabular-nums">
-                        {amount || "0"}
+                    {/* Amount display — centered as one unified block */}
+                    <div className="mt-4 flex min-h-[4.5rem] items-baseline justify-center text-center">
+                      <span className="inline-flex items-baseline gap-1.5">
+                        <span
+                          className="font-mono-display text-3xl"
+                          style={{ color: accent }}
+                        >{sign}</span>
+                        <span className="font-mono-display text-3xl text-muted-foreground">₹</span>
+                        <span className="text-center font-mono-display text-6xl font-light leading-none tabular-nums">
+                          {amount || "0"}
+                        </span>
                       </span>
                     </div>
 
@@ -522,20 +637,20 @@ export function AddTransactionModal({
                       </div>
                     )}
 
-                    {/* Payment method chips */}
-                    <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+                    {/* Payment method chips — exactly 5 equal columns, always one line */}
+                    <div className="mt-3 grid grid-cols-5 gap-1.5 px-3">
                       {PAYMENT_METHODS.map((m) => {
                         const sel = paymentMethod === m.key;
                         return (
                           <button
                             key={m.key}
                             onClick={() => { setPaymentMethod(m.key); haptic("tick"); }}
-                            className={`flex min-h-11 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] ${
+                            className={`flex h-14 w-full flex-col items-center justify-center gap-1 rounded-2xl border px-1 text-center text-[9px] leading-tight ${
                               sel ? "border-white/40 text-foreground" : "border-white/10 text-muted-foreground"
                             }`}
                           >
-                            <Icon name={m.icon} size={11} strokeWidth={1.6} />
-                            {m.label}
+                            <Icon name={m.icon} size={14} strokeWidth={1.6} />
+                            <span className="truncate">{m.label}</span>
                           </button>
                         );
                       })}
@@ -584,6 +699,17 @@ export function AddTransactionModal({
               </AnimatePresence>
             </div>
           </motion.div>
+
+          <CategoryIconPopup
+            open={catPopupOpen}
+            categories={catPool}
+            selectedKey={category}
+            colorFor={themeColor}
+            onSelect={(selected) => {
+              setAutoCat(false); setCategory(selected.key); setIcon(selected.icon);
+            }}
+            onClose={() => setCatPopupOpen(false)}
+          />
         </>
       )}
     </AnimatePresence>

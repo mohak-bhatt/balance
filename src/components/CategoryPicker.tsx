@@ -13,14 +13,14 @@ interface Props {
   compact?: boolean;
 }
 
-const GROUPS: { label: string; keys: string[] }[] = [
+export const GROUPS: { label: string; keys: string[] }[] = [
   { label: "Food & drink", keys: ["food", "groceries", "beverages", "desserts_sweets", "coffee_snacks"] },
   { label: "Getting around", keys: ["transport", "fuel", "travel"] },
   { label: "Home & life", keys: ["shopping", "clothing", "electronics", "stationery", "bills", "rent", "subscriptions", "entertainment", "fitness", "medical", "education", "gifts", "personal_care", "pets", "home_repair", "childcare"] },
   { label: "Money in", keys: ["pocket_money", "salary", "gift_in", "refund", "loan_repaid", "other_income"] },
 ];
 
-function groupFor(category: CategoryDef): string {
+export function groupFor(category: CategoryDef): string {
   return GROUPS.find((group) => group.keys.includes(category.key))?.label ?? "Other";
 }
 

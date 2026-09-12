@@ -37,7 +37,14 @@ export function PaymentMethodPopover({ open, onClose, balances, onAddMoney }: Pr
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
             transition={{ type: "spring", stiffness: 320, damping: 24 }}
-            className="liquid-glass fixed left-1/2 top-24 z-[60] w-[88vw] max-w-sm -translate-x-1/2 rounded-3xl p-4"
+            className="fixed left-1/2 top-24 z-[60] w-[88vw] max-w-sm -translate-x-1/2 rounded-3xl border p-4"
+            style={{
+              background: "rgba(15, 15, 15, 0.65)",
+              backdropFilter: "blur(10px) saturate(150%)",
+              WebkitBackdropFilter: "blur(10px) saturate(150%)",
+              borderColor: "rgba(255,255,255,0.08)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 -20px 60px -20px rgba(0,0,0,0.8)",
+            }}
           >
             <div className="flex items-center justify-between">
               <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">

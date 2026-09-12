@@ -5,6 +5,7 @@ import {
   ArrowLeft, Delete, X, Check, FileText, Handshake,
 } from "lucide-react";
 import { Icon } from "./Icon";
+import { CategoryPicker } from "./CategoryPicker";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useKeyboardOffset } from "@/hooks/useKeyboardOffset";
 import { useOverlayState } from "@/lib/OverlayContext";
@@ -14,7 +15,6 @@ import {
   PICKABLE_EXPENSE_CATEGORIES,
   PICKABLE_INCOME_CATEGORIES,
   formatCurrency,
-  getCategory,
   matchCategory,
   type Direction,
   type LineItem,
@@ -83,10 +83,8 @@ export function AddTransactionModal({
     isIncome ? PICKABLE_INCOME_CATEGORIES[0].icon : PICKABLE_EXPENSE_CATEGORIES[0].icon,
   );
   const [autoCat, setAutoCat] = useState(true);
-  const [showAutoCatBadge, setShowAutoCatBadge] = useState(false);
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
-  const [catPickerOpen, setCatPickerOpen] = useState(false);
   const [singleStep, setSingleStep] = useState(false);
 
   // Step-2 inline editing
@@ -108,8 +106,8 @@ export function AddTransactionModal({
       setLentTo("");
       const initialCat = isIncome ? PICKABLE_INCOME_CATEGORIES[0] : PICKABLE_EXPENSE_CATEGORIES[0];
       setCategory(initialCat.key); setIcon(initialCat.icon);
-      setAutoCat(true); setShowAutoCatBadge(false); setAmount(""); setPaymentMethod("cash");
-      setCatPickerOpen(false); setSingleStep(false);
+      setAutoCat(true); setAmount(""); setPaymentMethod("cash");
+      setSingleStep(false);
       setEditingTitle(false); setEditingNote(false);
       return;
     }
@@ -169,17 +167,10 @@ export function AddTransactionModal({
   );
   useEffect(() => {
     if (!autoCat || !title.trim()) {
-      setShowAutoCatBadge(false);
       return;
     }
     setCategory(matched.key);
     setIcon(matched.icon);
-    if (title.trim().length > 2 && matched.key !== "misc") {
-      setShowAutoCatBadge(true);
-      const timer = setTimeout(() => setShowAutoCatBadge(false), 1800);
-      return () => clearTimeout(timer);
-    }
-    setShowAutoCatBadge(false);
   }, [matched, autoCat, title]);
 
   const stepsTotal = mode === "lend" ? 3 : 2;
@@ -254,7 +245,6 @@ export function AddTransactionModal({
 
   const accent = isIncome ? "#10B981" : "#F87171";
   const sign = isIncome ? "+" : "−";
-  const cat = getCategory(category);
   const catPool = isIncome ? PICKABLE_INCOME_CATEGORIES : PICKABLE_EXPENSE_CATEGORIES;
 
   const node = (
@@ -318,7 +308,7 @@ export function AddTransactionModal({
                       onChange={(e) => { setTitle(e.target.value); setAutoCat(true); }}
                       placeholder={isIncome ? "e.g. Pocket money from mom" : "e.g. Cafeteria samosa"}
                       onKeyDown={(e) => { if (e.key === "Enter") next(); }}
-                      className="mt-6 w-full border-b border-white/15 bg-transparent pb-3 text-2xl font-light outline-none placeholder:text-muted-foreground/40 focus:border-white/40"
+                      className="editor-field mt-6 w-full text-2xl font-light placeholder:text-muted-foreground/40 focus:border-white/40"
                     />
 
                     {/* Two modifier buttons */}
@@ -452,84 +442,14 @@ export function AddTransactionModal({
 
                     {/* category chip */}
                     {mode !== "lend" && !singleStep && (
-                      <>
-                        <div className="mt-2 flex w-fit items-center gap-2 min-h-[28px]">
-                          <button
-                            onClick={() => setCatPickerOpen((v) => !v)}
-                            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${showAutoCatBadge ? "category-border-magic" : ""}`}
-                            style={{
-                              borderColor: cat.color + "55",
-                              background: `color-mix(in oklab, ${cat.color} 14%, transparent)`,
-                              color: cat.color,
-                            }}
-                          >
-                            <Icon name={cat.icon} size={12} strokeWidth={1.7} />
-                            <span className="font-medium">{cat.label}</span>
-                          </button>
-                          <div className="min-w-[132px]">
-                            <AnimatePresence mode="wait">
-                              {showAutoCatBadge ? (
-                                <motion.p
-                                  key="autocat"
-                                  initial={{ opacity: 0, x: -6 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  exit={{ opacity: 0, x: -6 }}
-                                  transition={{ duration: 0.22 }}
-                                  className="text-[10px] text-muted-foreground whitespace-nowrap"
-                                >
-                                  Automatically categorised
-                                </motion.p>
-                              ) : (
-                                <motion.div
-                                  key="autocat-placeholder"
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 0 }}
-                                  exit={{ opacity: 0 }}
-                                  className="h-[14px]"
-                                />
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </div>
-
-                        <AnimatePresence>
-                          {catPickerOpen && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="-mx-6 mt-2 overflow-hidden"
-                            >
-                              <div className="flex gap-1.5 overflow-x-auto px-6 pb-1">
-                                {catPool.map((c) => {
-                                  const sel = c.key === category;
-                                  return (
-                                    <button
-                                      key={c.key}
-                                      onClick={() => {
-                                        setAutoCat(false); setCategory(c.key); setIcon(c.icon);
-                                        setCatPickerOpen(false);
-                                      }}
-                                      className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs"
-                                      style={sel ? {
-                                        borderColor: c.color,
-                                        background: `color-mix(in oklab, ${c.color} 18%, transparent)`,
-                                        color: c.color,
-                                      } : {
-                                        borderColor: "rgba(255,255,255,0.08)",
-                                        color: "rgba(255,255,255,0.65)",
-                                      }}
-                                    >
-                                      <Icon name={c.icon} size={12} strokeWidth={1.7} />
-                                      <span>{c.label}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </>
+                      <CategoryPicker
+                        categories={catPool}
+                        selectedKey={category}
+                        onSelect={(selected) => {
+                          setAutoCat(false); setCategory(selected.key); setIcon(selected.icon);
+                        }}
+                        compact
+                      />
                     )}
 
                     {/* Editable note (preserves line breaks, no wrap) */}
@@ -553,13 +473,13 @@ export function AddTransactionModal({
                     )}
 
                     {/* Amount display */}
-                    <div className="mt-4 flex min-h-[4.5rem] items-baseline justify-center gap-1.5">
+                    <div className="mt-4 flex min-h-[4.5rem] items-baseline justify-center gap-1.5 text-center">
                       <span
                         className="font-mono-display text-3xl"
                         style={{ color: accent }}
                       >{sign}</span>
                       <span className="font-mono-display text-3xl text-muted-foreground">₹</span>
-                      <span className="w-[8ch] min-w-[8ch] text-right font-mono-display text-6xl font-light leading-none tabular-nums">
+                      <span className="w-[6ch] min-w-[6ch] text-center font-mono-display text-6xl font-light leading-none tabular-nums">
                         {amount || "0"}
                       </span>
                     </div>
@@ -610,7 +530,7 @@ export function AddTransactionModal({
                           <button
                             key={m.key}
                             onClick={() => { setPaymentMethod(m.key); haptic("tick"); }}
-                            className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] ${
+                            className={`flex min-h-11 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] ${
                               sel ? "border-white/40 text-foreground" : "border-white/10 text-muted-foreground"
                             }`}
                           >

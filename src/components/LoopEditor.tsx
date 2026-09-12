@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Trash2, X, Pencil, Check } from "lucide-react";
 import { Icon } from "./Icon";
+import { CategoryPicker } from "./CategoryPicker";
 import { IconPicker } from "./IconPicker";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useKeyboardOffset } from "@/hooks/useKeyboardOffset";
@@ -203,15 +204,15 @@ export function LoopEditor({
               </div>
             )}
 
-            <div className="mt-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
-              <p className="mb-3 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            <div className="editor-card mt-5 rounded-2xl p-4">
+              <p className="editor-eyebrow mb-3">
                 {editingId ? "Editing loop" : "New loop"}
               </p>
 
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setPickerOpen(true)}
-                  className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.03]"
+                  className="editor-field grid h-14 w-14 shrink-0 place-items-center rounded-full p-0"
                 >
                   <Icon name={icon} size={22} strokeWidth={1.5} />
                 </button>
@@ -219,7 +220,7 @@ export function LoopEditor({
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   placeholder="Label (e.g. Netflix)"
-                  className="w-full border-b border-white/10 bg-transparent pb-1.5 text-base outline-none placeholder:text-muted-foreground focus:border-foreground/40"
+                  className="editor-field h-14 w-full rounded-2xl text-base outline-none placeholder:text-muted-foreground/70 focus:border-white/30"
                 />
               </div>
 
@@ -228,7 +229,7 @@ export function LoopEditor({
                   <button
                     key={d}
                     onClick={() => setDirection(d)}
-                    className={`flex-1 rounded-full border py-2 text-[10px] uppercase tracking-[0.22em] ${
+                      className={`h-11 flex-1 rounded-full border text-[10px] uppercase tracking-[0.22em] ${
                       direction === d
                         ? "border-white/30 bg-white/[0.05] text-foreground"
                         : "border-white/[0.06] text-muted-foreground"
@@ -239,33 +240,17 @@ export function LoopEditor({
                 ))}
               </div>
 
-              <p className="mt-4 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Category</p>
-              <div className="mt-2 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-                {pool.map((c) => {
-                  const sel = c.key === category;
-                  const color = themeColor(c.key);
-                  return (
-                    <button
-                      key={c.key}
-                      onClick={() => setCategory(c.key)}
-                      className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs"
-                      style={sel ? {
-                        background: `color-mix(in oklab, ${color} 18%, transparent)`,
-                        borderColor: color,
-                        color: color,
-                      } : { borderColor: "rgba(255,255,255,0.08)", background: "transparent" }}
-                    >
-                      <Icon name={c.icon} size={12} strokeWidth={1.6} />
-                      <span>{c.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <CategoryPicker
+                categories={pool}
+                selectedKey={category}
+                colorFor={themeColor}
+                onSelect={(selected) => setCategory(selected.key)}
+              />
 
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div>
-                  <p className="mb-1.5 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Amount</p>
-                  <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                  <p className="editor-eyebrow mb-1.5">Amount</p>
+                  <div className="editor-field flex h-14 items-center gap-2 rounded-2xl">
                     <span className="font-mono-display text-sm text-muted-foreground">₹</span>
                     <input
                       type="number" value={amount}
@@ -276,8 +261,8 @@ export function LoopEditor({
                   </div>
                 </div>
                 <div>
-                  <p className="mb-1.5 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Day of month</p>
-                  <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                  <p className="editor-eyebrow mb-1.5">Day of month</p>
+                  <div className="editor-field flex h-14 items-center gap-2 rounded-2xl">
                     <input
                       type="text"
                       inputMode="numeric"
@@ -294,13 +279,13 @@ export function LoopEditor({
                 </div>
               </div>
 
-              <p className="mt-4 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Payment method</p>
+              <p className="editor-eyebrow mt-4">Payment method</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {PAYMENT_METHODS.map((m) => (
                   <button
                     key={m.key}
                     onClick={() => setMethod(m.key)}
-                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs ${
+                    className={`flex h-11 items-center gap-1.5 rounded-full border px-4 text-xs ${
                       method === m.key
                         ? "border-white/30 bg-white/[0.06] text-foreground"
                         : "border-white/[0.06] text-muted-foreground"
@@ -324,7 +309,7 @@ export function LoopEditor({
                   whileTap={{ scale: 0.97 }}
                   onClick={save}
                   disabled={!label.trim() || !(parseFloat(amount) > 0)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-full border border-white/20 bg-white/[0.06] py-3 text-[11px] uppercase tracking-[0.22em] text-foreground disabled:opacity-30"
+                  className="editor-field flex h-14 flex-1 items-center justify-center gap-2 rounded-full text-[11px] uppercase tracking-[0.22em] text-foreground disabled:opacity-30"
                 >
                   <Check size={14} strokeWidth={1.8} />
                   {editingId ? "Update" : "Save loop"}

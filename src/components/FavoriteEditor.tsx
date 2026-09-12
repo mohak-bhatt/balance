@@ -3,11 +3,12 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Trash2, X, Pencil, Check } from "lucide-react";
 import { Icon } from "./Icon";
+import { CategoryPicker } from "./CategoryPicker";
 import { IconPicker } from "./IconPicker";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useKeyboardOffset } from "@/hooks/useKeyboardOffset";
 import { useOverlayState } from "@/lib/OverlayContext";
-import { CATEGORIES, PAYMENT_METHODS, type Favorite, type PaymentMethod } from "@/lib/ledger";
+import { CATEGORIES, PAYMENT_METHODS, PICKABLE_EXPENSE_CATEGORIES, PICKABLE_INCOME_CATEGORIES, type Favorite, type PaymentMethod } from "@/lib/ledger";
 import { useCategoryColor } from "@/lib/themes";
 import { showInfo } from "@/lib/undo";
 import { haptic } from "@/lib/haptics";
@@ -40,6 +41,7 @@ export function FavoriteEditor({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const themeColor = useCategoryColor();
+  const favoriteCategories = [...PICKABLE_EXPENSE_CATEGORIES, ...PICKABLE_INCOME_CATEGORIES];
   useBodyScrollLock(open);
 
 
@@ -186,15 +188,15 @@ export function FavoriteEditor({
             )}
 
             {/* Form */}
-            <div className="mt-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
-              <p className="mb-3 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            <div className="editor-card mt-5 rounded-2xl p-4">
+              <p className="editor-eyebrow mb-3">
                 {editingId ? "Editing favorite" : "New favorite"}
               </p>
 
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setPickerOpen(true)}
-                  className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.03]"
+                  className="editor-field grid h-14 w-14 shrink-0 place-items-center rounded-full p-0"
                 >
                   <Icon name={icon} size={22} strokeWidth={1.5} />
                 </button>
@@ -202,38 +204,21 @@ export function FavoriteEditor({
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   placeholder="Label"
-                  className="w-full border-b border-white/10 bg-transparent pb-1.5 text-base outline-none placeholder:text-muted-foreground focus:border-foreground/40"
+                  className="editor-field h-14 w-full rounded-2xl text-base placeholder:text-muted-foreground/70 focus:border-white/30"
                 />
               </div>
 
-              <p className="mt-4 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Category</p>
-              <div className="mt-2 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-                {CATEGORIES.map((c) => {
-                  const sel = c.key === category;
-                  const color = themeColor(c.key);
-                  return (
-                    <motion.button
-                      key={c.key}
-                      whileTap={{ scale: 0.92 }}
-                      onClick={() => setCategory(c.key)}
-                      className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs"
-                      style={sel ? {
-                        background: `color-mix(in oklab, ${color} 18%, transparent)`,
-                        borderColor: color,
-                        color: color,
-                      } : { borderColor: "rgba(255,255,255,0.08)", background: "transparent" }}
-                    >
-                      <Icon name={c.icon} size={12} strokeWidth={1.6} />
-                      <span className="font-medium">{c.label}</span>
-                    </motion.button>
-                  );
-                })}
-              </div>
+              <CategoryPicker
+                categories={favoriteCategories}
+                selectedKey={category}
+                colorFor={themeColor}
+                onSelect={(selected) => setCategory(selected.key)}
+              />
 
-              <p className="mt-4 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              <p className="editor-eyebrow mt-4">
                 Preset amount · optional
               </p>
-              <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                <div className="editor-field mt-2 flex h-14 items-center gap-2 rounded-2xl">
                 <span className="font-mono-display text-sm text-muted-foreground">₹</span>
                 <input
                   type="number"
@@ -244,13 +229,13 @@ export function FavoriteEditor({
                 />
               </div>
 
-              <p className="mt-4 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              <p className="editor-eyebrow mt-4">
                 Payment method · optional
               </p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <button
                   onClick={() => setPaymentMethod(null)}
-                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] ${
+                  className={`flex h-11 items-center gap-1.5 rounded-full border px-4 text-[11px] ${
                     paymentMethod === null ? "border-white/40 text-foreground" : "border-white/10 text-muted-foreground"
                   }`}
                 >
@@ -262,7 +247,7 @@ export function FavoriteEditor({
                     <button
                       key={m.key}
                       onClick={() => setPaymentMethod(m.key)}
-                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] ${
+                      className={`flex h-11 items-center gap-1.5 rounded-full border px-4 text-[11px] ${
                         sel ? "border-white/40 text-foreground" : "border-white/10 text-muted-foreground"
                       }`}
                     >
@@ -286,7 +271,7 @@ export function FavoriteEditor({
                   whileTap={{ scale: 0.97 }}
                   onClick={save}
                   disabled={!label.trim()}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-full border border-white/20 bg-white/[0.06] py-3 text-[11px] uppercase tracking-[0.22em] text-foreground disabled:opacity-40"
+                    className="editor-field flex h-14 flex-1 items-center justify-center gap-2 rounded-full text-[11px] uppercase tracking-[0.22em] text-foreground disabled:opacity-40"
                 >
                   <Check size={14} strokeWidth={1.8} />
                   {editingId ? "Update" : "Save favorite"}

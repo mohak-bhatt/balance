@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Delete, X } from "lucide-react";
 import { Icon } from "./Icon";
+import { CategoryPicker } from "./CategoryPicker";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useKeyboardOffset } from "@/hooks/useKeyboardOffset";
 import { useOverlayState } from "@/lib/OverlayContext";
@@ -11,7 +12,6 @@ import {
   PAYMENT_METHODS,
   PICKABLE_EXPENSE_CATEGORIES,
   PICKABLE_INCOME_CATEGORIES,
-  getCategory,
   type PaymentMethod,
   type Transaction,
 } from "@/lib/ledger";
@@ -42,7 +42,6 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
   const [isLend, setIsLend] = useState(false);
   const [category, setCategory] = useState<string>("misc");
   const [icon, setIcon] = useState<string>("Sparkles");
-  const [catPickerOpen, setCatPickerOpen] = useState(false);
   const kb = useKeyboardOffset();
 
   useEffect(() => {
@@ -58,7 +57,6 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
     setEditingTitle(false);
     setEditingNote(false);
     setEditingLentTo(false);
-    setCatPickerOpen(false);
   }, [open, tx]);
 
   useBodyScrollLock(open);
@@ -105,7 +103,6 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
 
   const accent = tx.direction === "in" ? "#10B981" : "#F87171";
   const sign = tx.direction === "in" ? "+" : "−";
-  const cat = isLend ? getCategory(LENT_OUT_KEY) : getCategory(category);
   const catPool = tx.direction === "in" ? PICKABLE_INCOME_CATEGORIES : PICKABLE_EXPENSE_CATEGORIES;
 
   const node = (
@@ -146,7 +143,7 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
               <X size={18} strokeWidth={1.6} />
             </button>
 
-            <div className="mx-auto flex h-[calc(100%-1.25rem)] max-w-md flex-col px-6 pt-4 pb-5">
+            <div className="editor-card mx-auto flex h-[calc(100%-1.25rem)] max-w-md flex-col rounded-t-2xl px-6 pt-4 pb-5">
               <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
                 Edit · {isLend ? "Lend" : (tx.direction === "in" ? "Income" : "Expense")}
               </p>
@@ -160,7 +157,7 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
                     onChange={(e) => setTitle(e.target.value)}
                     onBlur={() => setEditingTitle(false)}
                     onKeyDown={(e) => { if (e.key === "Enter") setEditingTitle(false); }}
-                    className="w-full border-b border-white/30 bg-transparent text-xl font-medium outline-none"
+                    className="editor-field w-full text-xl font-medium"
                   />
                 ) : (
                   <button
@@ -175,56 +172,13 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
               {/* Category chip — opens picker */}
               {!isLend && (
                 <>
-                  <button
-                    onClick={() => setCatPickerOpen((v) => !v)}
-                    className="mt-2 flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs"
-                    style={{
-                      borderColor: cat.color + "55",
-                      background: `color-mix(in oklab, ${cat.color} 14%, transparent)`,
-                      color: cat.color,
+                  <CategoryPicker
+                    categories={catPool}
+                    selectedKey={category}
+                    onSelect={(selected) => {
+                      setCategory(selected.key); setIcon(selected.icon); haptic("tick");
                     }}
-                  >
-                    <Icon name={cat.icon} size={12} strokeWidth={1.7} />
-                    <span className="font-medium">{cat.label}</span>
-                  </button>
-                  <AnimatePresence>
-                    {catPickerOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="-mx-6 mt-2 overflow-hidden"
-                      >
-                        <div className="hide-scrollbar flex gap-1.5 overflow-x-auto px-6 pb-1">
-                          {catPool.map((c) => {
-                            const sel = c.key === category;
-                            return (
-                              <button
-                                key={c.key}
-                                onClick={() => {
-                                  setCategory(c.key); setIcon(c.icon);
-                                  setCatPickerOpen(false);
-                                  haptic("tick");
-                                }}
-                                className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs"
-                                style={sel ? {
-                                  borderColor: c.color,
-                                  background: `color-mix(in oklab, ${c.color} 18%, transparent)`,
-                                  color: c.color,
-                                } : {
-                                  borderColor: "rgba(255,255,255,0.08)",
-                                  color: "rgba(255,255,255,0.65)",
-                                }}
-                              >
-                                <Icon name={c.icon} size={12} strokeWidth={1.7} />
-                                <span>{c.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  />
                 </>
               )}
 
@@ -237,12 +191,12 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
                     onChange={(e) => setNote(e.target.value)}
                     onBlur={() => setEditingNote(false)}
                     rows={2}
-                    className="w-full resize-none rounded-xl border border-white/10 bg-transparent p-2 text-xs outline-none"
+                    className="editor-field w-full resize-none text-xs"
                   />
                 ) : (
                   <button
                     onClick={() => setEditingNote(true)}
-                    className="block w-full overflow-x-auto whitespace-pre text-left text-xs text-muted-foreground"
+                    className="editor-field block w-full overflow-x-auto whitespace-pre text-left text-xs text-muted-foreground"
                   >
                     {note || <span className="text-muted-foreground/60">+ Add note</span>}
                   </button>
@@ -315,7 +269,7 @@ export function EditTransactionPopup({ open, tx, onClose, onSave, sheetTopPx }: 
                     <button
                       key={m.key}
                       onClick={() => { setPm(m.key); haptic("tick"); }}
-                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] ${
+                      className={`flex min-h-11 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] ${
                         sel ? "border-white/40 text-foreground" : "border-white/10 text-muted-foreground"
                       }`}
                     >
